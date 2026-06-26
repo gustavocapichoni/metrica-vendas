@@ -20,6 +20,7 @@ import {
 import { onAuthStateChanged, signOut, User } from "firebase/auth";
 import {
   doc,
+  getDoc,
   setDoc,
   collection,
   onSnapshot,
@@ -78,25 +79,26 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
     const col = collection(db, "users", user.uid, "items");
-    const unsub = onSnapshot(col, (snapshot) => {
-      if (snapshot.empty) {
-        // First-time user: seed with initial items
-        const batch = writeBatch(db);
-        INITIAL_ITEMS.forEach(item => {
-          const ref = doc(col, item.id);
-          batch.set(ref, item);
-        });
-        batch.commit();
-        setItems(INITIAL_ITEMS);
-      } else {
-        const loaded: Item[] = snapshot.docs.map(d => ({
-          ...d.data(),
-          id: d.id,
-          currentStock: d.data().currentStock ?? 50,
-          minStock: d.data().minStock ?? 10
-        } as Item));
-        setItems(loaded);
+    const metaRef = doc(db, "users", user.uid, "_meta", "initialized");
+
+    // Check if this user has ever initialized before
+    getDoc(metaRef).then(async (metaSnap) => {
+      const isFirstTime = !metaSnap.exists();
+      if (isFirstTime) {
+        // Mark as initialized immediately so we don't seed twice
+        await setDoc(metaRef, { at: new Date().toISOString() });
+        // New user: start with empty list (no seed)
       }
+    });
+
+    const unsub = onSnapshot(col, (snapshot) => {
+      const loaded: Item[] = snapshot.docs.map(d => ({
+        ...d.data(),
+        id: d.id,
+        currentStock: d.data().currentStock ?? 50,
+        minStock: d.data().minStock ?? 10
+      } as Item));
+      setItems(loaded);
     });
     return unsub;
   }, [user]);
@@ -106,23 +108,12 @@ export default function App() {
     if (!user) return;
     const col = collection(db, "users", user.uid, "dailyLogs");
     const unsub = onSnapshot(col, (snapshot) => {
-      if (snapshot.empty) {
-        // First-time user: seed with initial logs
-        const batch = writeBatch(db);
-        INITIAL_DAILY_LOGS.forEach(log => {
-          const ref = doc(col, log.id);
-          batch.set(ref, log);
-        });
-        batch.commit();
-        setDailyLogs(INITIAL_DAILY_LOGS);
-      } else {
-        const loaded: DailyLog[] = snapshot.docs.map(d => ({
-          ...d.data(),
-          id: d.id
-        } as DailyLog));
-        const sorted = [...loaded].sort((a, b) => b.date.localeCompare(a.date));
-        setDailyLogs(sorted);
-      }
+      const loaded: DailyLog[] = snapshot.docs.map(d => ({
+        ...d.data(),
+        id: d.id
+      } as DailyLog));
+      const sorted = [...loaded].sort((a, b) => b.date.localeCompare(a.date));
+      setDailyLogs(sorted);
     });
     return unsub;
   }, [user]);
@@ -877,16 +868,41 @@ export default function App() {
                   exit={{ opacity: 0, y: -10 }}
                   transition={{ duration: 0.2 }}
                 >
-                  <ItemTable
-                    items={items}
-                    logs={dailyLogs}
-                    onEdit={handleEditSelect}
-                    onDelete={handleDeleteItem}
-                    onAddNew={() => {
-                      setEditingItem(null);
-                      setIsFormOpen(true);
-                    }}
-                  />
+                  {items.length === 0 ? (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.96 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ duration: 0.4 }}
+                      className="flex flex-col items-center justify-center py-24 gap-6 text-center"
+                    >
+                      <div className="w-20 h-20 rounded-3xl flex items-center justify-center shadow-lg" style={{ background: "linear-gradient(135deg, rgba(99,102,241,0.15), rgba(139,92,246,0.15))", border: "1px solid rgba(99,102,241,0.25)" }}>
+                        <Package size={36} className="text-indigo-400" />
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-bold text-white mb-2">Nenhum item cadastrado</h3>
+                        <p className="text-white/40 text-sm max-w-xs">Adicione os produtos que você vende para começar a controlar seu estoque e vendas.</p>
+                      </div>
+                      <button
+                        onClick={() => { setEditingItem(null); setIsFormOpen(true); }}
+                        className="flex items-center gap-2 px-6 py-3 rounded-2xl font-bold text-sm text-white transition-all cursor-pointer shadow-lg"
+                        style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}
+                      >
+                        <PlusCircle size={16} />
+                        Adicionar primeiro item
+                      </button>
+                    </motion.div>
+                  ) : (
+                    <ItemTable
+                      items={items}
+                      logs={dailyLogs}
+                      onEdit={handleEditSelect}
+                      onDelete={handleDeleteItem}
+                      onAddNew={() => {
+                        setEditingItem(null);
+                        setIsFormOpen(true);
+                      }}
+                    />
+                  )}
                 </motion.div>
               ) : (
                 <motion.div
@@ -897,22 +913,49 @@ export default function App() {
                   transition={{ duration: 0.2 }}
                   className="space-y-8"
                 >
-                  <DailyLogTable
-                    logs={dailyLogs}
-                    onEdit={handleEditDailyLogSelect}
-                    onDelete={handleDeleteDailyLog}
-                    onAddNew={handleCreateDirectDailyLog}
-                    selectedLogId={selectedLogId}
-                    onSelectLog={setSelectedLogId}
-                  />
-                  <DailyItemSalesTable
-                    log={selectedLog}
-                    items={items}
-                    onUpdateSale={handleUpdateItemSale}
-                    onClearSale={handleClearItemSale}
-                    isReportModalOpenExternally={isReportOpen}
-                    onCloseReportModalExternally={() => setIsReportOpen(false)}
-                  />
+                  {dailyLogs.length === 0 ? (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.96 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ duration: 0.4 }}
+                      className="flex flex-col items-center justify-center py-24 gap-6 text-center"
+                    >
+                      <div className="w-20 h-20 rounded-3xl flex items-center justify-center shadow-lg" style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.15), rgba(5,150,105,0.15))", border: "1px solid rgba(16,185,129,0.25)" }}>
+                        <ShoppingBag size={36} className="text-emerald-400" />
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-bold text-white mb-2">Nenhum dia de venda registrado</h3>
+                        <p className="text-white/40 text-sm max-w-xs">Registre o seu primeiro dia de vendas para acompanhar faturamento, lucro e desempenho.</p>
+                      </div>
+                      <button
+                        onClick={handleCreateDirectDailyLog}
+                        className="flex items-center gap-2 px-6 py-3 rounded-2xl font-bold text-sm text-white transition-all cursor-pointer shadow-lg"
+                        style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}
+                      >
+                        <PlusCircle size={16} />
+                        Registrar primeiro dia
+                      </button>
+                    </motion.div>
+                  ) : (
+                    <>
+                      <DailyLogTable
+                        logs={dailyLogs}
+                        onEdit={handleEditDailyLogSelect}
+                        onDelete={handleDeleteDailyLog}
+                        onAddNew={handleCreateDirectDailyLog}
+                        selectedLogId={selectedLogId}
+                        onSelectLog={setSelectedLogId}
+                      />
+                      <DailyItemSalesTable
+                        log={selectedLog}
+                        items={items}
+                        onUpdateSale={handleUpdateItemSale}
+                        onClearSale={handleClearItemSale}
+                        isReportModalOpenExternally={isReportOpen}
+                        onCloseReportModalExternally={() => setIsReportOpen(false)}
+                      />
+                    </>
+                  )}
                 </motion.div>
               )}
             </AnimatePresence>
