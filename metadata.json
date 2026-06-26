@@ -1,0 +1,6 @@
+{
+  "name": "Lista de Itens e Vendas",
+  "description": "Uma aplicação para gerenciar itens, preços e total de vendas realizadas.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
