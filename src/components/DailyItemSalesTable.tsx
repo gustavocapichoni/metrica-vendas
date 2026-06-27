@@ -45,6 +45,8 @@ export default function DailyItemSalesTable({
   const [sortField, setSortField] = useState<SortField>("itemName");
   const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
   const [customValueInput, setCustomValueInput] = useState<{ [itemId: string]: string }>({});
+  const [reinvestedInput, setReinvestedInput] = useState<{ [itemId: string]: string }>({});
+  const [expensesInput, setExpensesInput] = useState<{ [itemId: string]: string }>({});
   const [isReportModalOpenLocally, setIsReportModalOpenLocally] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -100,7 +102,13 @@ export default function DailyItemSalesTable({
     const busesBoarded = busSales.length;
     const totalSoldQty = busSales.reduce((sum, v) => sum + v, 0);
     
-    const unitPilotCost = getPilotSweetUnitCost(item.name);
+    const unitSalePrice = existingSale?.salePrice ?? item.salePrice ?? 1.0;
+    const unitsPerPackage = existingSale?.unitsPerPackage ?? item.unitsPerPackage ?? 1;
+    
+    // Unit cost for reference (package price ÷ units per package)
+    const unitCost = item.price / unitsPerPackage;
+    // Pilot sweet is valued at SALE price (the revenue lost by giving it away)
+    const unitPilotCost = unitSalePrice;
 
     // Default pilot sweets in units = busesBoarded, unless pilotCost exists and implies a different quantity
     const pilotSweetsQty = existingSale?.pilotCost !== undefined 
@@ -111,10 +119,18 @@ export default function DailyItemSalesTable({
     const pilotCost = existingSale?.pilotCost !== undefined ? existingSale.pilotCost : (pilotSweetsQty * unitPilotCost);
     const expenses = existingSale?.expenses || 0;
 
+    const soldValue = totalSoldQty * unitSalePrice;
+    const costOfProducts = (totalSoldQty + pilotSweetsQty) * unitCost;
+    // Net profit = revenue - cost of products (sold + pilot) - extra expenses
+    const netProfit = soldValue - costOfProducts - expenses;
+
     return {
       itemId: item.id,
       itemName: item.name,
       price: item.price,
+      unitsPerPackage,
+      salePrice: unitSalePrice,
+      unitCost,
       unitPilotCost,
       loadedQuantity,
       leftoverQuantity,
@@ -124,8 +140,8 @@ export default function DailyItemSalesTable({
       busSales,
       pilotSweetsQty,
       soldQuantity: totalSoldQty,
-      soldValue: totalSoldQty * unitPilotCost,
-      netProfit: (totalSoldQty * unitPilotCost) - pilotCost - expenses,
+      soldValue,
+      netProfit,
       isTouched: !!existingSale,
       currentStock: item.currentStock || 0
     };
@@ -157,8 +173,9 @@ export default function DailyItemSalesTable({
   const totalQtySold = activeSalesForStats.reduce((sum, item) => sum + item.soldQuantity, 0);
   const totalRevenue = activeSalesForStats.reduce((sum, item) => sum + item.soldValue, 0);
   const totalExpenses = activeSalesForStats.reduce((sum, item) => sum + item.expenses, 0);
+  const totalReinvestedItem = activeSalesForStats.reduce((sum, item) => sum + (item.reinvestedValue || 0), 0);
   const totalPilotCost = activeSalesForStats.reduce((sum, item) => sum + item.pilotCost, 0);
-  const netProfitTotal = totalRevenue - totalExpenses - totalPilotCost;
+  const netProfitTotal = activeSalesForStats.reduce((sum, item) => sum + item.netProfit, 0);
 
   // Best product by qty
   let bestProductQty = "Nenhum";
@@ -246,12 +263,24 @@ export default function DailyItemSalesTable({
   };
 
   const handleExpensesInput = (itemId: string, value: string) => {
+    setExpensesInput(prev => ({ ...prev, [itemId]: value }));
     const cleaned = value.replace(",", ".");
     const parsed = parseFloat(cleaned);
     if (!isNaN(parsed) && parsed >= 0) {
       onUpdateSale(itemId, { expenses: parsed });
     } else if (value === "") {
       onUpdateSale(itemId, { expenses: 0 });
+    }
+  };
+
+  const handleReinvestedInput = (itemId: string, value: string) => {
+    setReinvestedInput(prev => ({ ...prev, [itemId]: value }));
+    const cleaned = value.replace(",", ".");
+    const parsed = parseFloat(cleaned);
+    if (!isNaN(parsed) && parsed >= 0) {
+      onUpdateSale(itemId, { reinvestedValue: parsed });
+    } else if (value === "") {
+      onUpdateSale(itemId, { reinvestedValue: 0 });
     }
   };
 
@@ -418,6 +447,8 @@ export default function DailyItemSalesTable({
           ${mergedSales.map(sale => sale.loadedQuantity > 0 ? `
             <div class="product-card">
               <div class="bold" style="font-size: 15px; margin-bottom: 6px;">${sale.itemName}</div>
+              <div class="flex-row"><span>Preço Venda (Unitário):</span><span>${formatCurrency(sale.salePrice)}</span></div>
+              <div class="flex-row"><span>Preço Custo (Pacote):</span><span>${formatCurrency(sale.price)} (${sale.unitsPerPackage} un)</span></div>
               <div class="flex-row"><span>Carga Levada:</span><span>${sale.loadedQuantity} un</span></div>
               <div class="flex-row"><span>Qtd Vendida:</span><span>${sale.soldQuantity} un</span></div>
               <div class="flex-row"><span>Doce Piloto:</span><span>${sale.pilotSweetsQty} un (-${formatCurrency(sale.pilotCost)})</span></div>
@@ -426,7 +457,7 @@ export default function DailyItemSalesTable({
               <div class="flex-row" style="color: #64748b; font-size: 13px;"><span>Saída Estoque (Baixa):</span><span>${sale.loadedQuantity - sale.leftoverQuantity} un</span></div>
               <div class="flex-row" style="color: #64748b; font-size: 13px;"><span>Estoque Total:</span><span>${sale.currentStock} un</span></div>
               <div class="flex-row" style="margin-top: 4px; border-top: 1px dotted #cbd5e1; padding-top: 4px;">
-                <span class="bold">Subtotal:</span>
+                <span class="bold">Subtotal Faturamento:</span>
                 <span class="bold">${formatCurrency(sale.soldValue)}</span>
               </div>
             </div>
@@ -465,12 +496,12 @@ export default function DailyItemSalesTable({
     if (!log) return;
 
     let csvContent = "\uFEFF"; // UTF-8 BOM
-    csvContent += "Produto,Preco Unitario,Carga Levada,Qtd Vendida,Qtd Sobra,Onibus Subidos,Custo Piloto,Despesa Item,Faturamento\n";
+    csvContent += "Produto,Preco Custo (Pacote),Unidades/Pacote,Preco Venda (Unidade),Carga Levada,Qtd Vendida,Qtd Sobra,Onibus Subidos,Custo Piloto,Despesa Item,Faturamento\n";
 
     mergedSales.forEach((sale) => {
       if (sale.loadedQuantity > 0) {
         const nameEscaped = `"${sale.itemName.replace(/"/g, '""')}"`;
-        csvContent += `${nameEscaped},${sale.price.toFixed(2)},${sale.loadedQuantity},${sale.soldQuantity},${sale.leftoverQuantity},${sale.busesBoarded},${sale.pilotCost.toFixed(2)},${sale.expenses.toFixed(2)},${sale.soldValue.toFixed(2)}\n`;
+        csvContent += `${nameEscaped},${sale.price.toFixed(2)},${sale.unitsPerPackage},${sale.salePrice.toFixed(2)},${sale.loadedQuantity},${sale.soldQuantity},${sale.leftoverQuantity},${sale.busesBoarded},${sale.pilotCost.toFixed(2)},${sale.expenses.toFixed(2)},${sale.soldValue.toFixed(2)}\n`;
       }
     });
 
@@ -608,6 +639,9 @@ export default function DailyItemSalesTable({
                   Doce Piloto
                 </th>
                 <th className="px-4 py-4 text-xs font-bold text-white/40 uppercase tracking-wider text-center select-none w-28">
+                  Reinvestimento (R$)
+                </th>
+                <th className="px-4 py-4 text-xs font-bold text-white/40 uppercase tracking-wider text-center select-none w-28">
                   Gastos (R$)
                 </th>
                 <th className="px-4 py-4 text-xs font-bold text-white/40 uppercase tracking-wider text-right select-none w-32">
@@ -632,7 +666,7 @@ export default function DailyItemSalesTable({
                     <td className="px-6 py-4">
                       <div className="font-semibold text-white text-sm">{sale.itemName}</div>
                       <div className="text-[10px] text-white/40 font-mono mt-0.5">
-                        Preço unitário: {formatCurrency(sale.price)}
+                        Venda: {formatCurrency(sale.salePrice)} | Custo: {formatCurrency(sale.price)} ({sale.unitsPerPackage} un)
                       </div>
                     </td>
 
@@ -791,15 +825,35 @@ export default function DailyItemSalesTable({
                       </div>
                     </td>
 
+                    {/* Reinvestimento (Input R$) */}
+                    <td className="px-4 py-4 text-center">
+                      <div className="flex items-center bg-white/5 border border-white/10 rounded-xl px-2 py-1 max-w-[80px] mx-auto font-mono text-xs">
+                        <span className="text-white/35 mr-1">R$</span>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={reinvestedInput[sale.itemId] !== undefined ? reinvestedInput[sale.itemId] : (sale.reinvestedValue === 0 || !sale.reinvestedValue ? "" : String(sale.reinvestedValue))}
+                          placeholder="0,00"
+                          onChange={(e) => handleReinvestedInput(sale.itemId, e.target.value)}
+                          onBlur={(e) => {
+                            setReinvestedInput(prev => { const n = { ...prev }; delete n[sale.itemId]; return n; });
+                          }}
+                          className="w-full bg-transparent text-white focus:outline-none border-none font-semibold"
+                        />
+                      </div>
+                    </td>
+
                     {/* Gasto (Input R$) */}
                     <td className="px-4 py-4 text-center">
                       <div className="flex items-center bg-white/5 border border-white/10 rounded-xl px-2 py-1 max-w-[80px] mx-auto font-mono text-xs">
                         <span className="text-white/35 mr-1">R$</span>
                         <input
                           type="text"
-                          value={sale.expenses === 0 ? "" : sale.expenses}
+                          inputMode="decimal"
+                          value={expensesInput[sale.itemId] !== undefined ? expensesInput[sale.itemId] : (sale.expenses === 0 ? "" : String(sale.expenses))}
                           placeholder="0,00"
                           onChange={(e) => handleExpensesInput(sale.itemId, e.target.value)}
+                          onBlur={() => setExpensesInput(prev => { const n = { ...prev }; delete n[sale.itemId]; return n; })}
                           className="w-full bg-transparent text-white focus:outline-none border-none font-semibold"
                         />
                       </div>
@@ -844,7 +898,7 @@ export default function DailyItemSalesTable({
                   <div>
                     <h3 className="font-bold text-white text-base leading-tight">{sale.itemName}</h3>
                     <p className="text-[10px] text-white/40 font-mono mt-0.5">
-                      Preço: <span className="text-white/80">{formatCurrency(sale.price)}</span>
+                      Venda: <span className="text-emerald-400 font-bold">{formatCurrency(sale.salePrice)}</span> | Custo: <span className="text-white/60">{formatCurrency(sale.price)} ({sale.unitsPerPackage} un)</span>
                     </p>
                   </div>
                   {sale.isTouched && (
@@ -987,8 +1041,8 @@ export default function DailyItemSalesTable({
                   </div>
                 </div>
 
-                {/* Sub-inputs: Doce Piloto and Gasto inline */}
-                <div className="grid grid-cols-2 gap-4 border-t border-white/5 pt-3">
+                {/* Sub-inputs: Doce Piloto, Reinvestimento, Gasto inline */}
+                <div className="grid grid-cols-3 gap-2 border-t border-white/5 pt-3">
                   {/* Doce Piloto */}
                   <div className="flex flex-col items-center justify-center text-center">
                     <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider mb-1.5">Doce Piloto</span>
@@ -1014,6 +1068,23 @@ export default function DailyItemSalesTable({
                     </span>
                   </div>
 
+                  {/* Reinvestimento extra */}
+                  <div className="flex flex-col items-center justify-center text-center">
+                    <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider mb-1.5">Reinvestimento</span>
+                    <div className="flex items-center bg-white/5 border border-white/5 rounded-xl px-2 py-1 max-w-[85px] font-mono text-xs">
+                      <span className="text-white/35 mr-0.5">R$</span>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={reinvestedInput[sale.itemId] !== undefined ? reinvestedInput[sale.itemId] : (sale.reinvestedValue === 0 || !sale.reinvestedValue ? "" : String(sale.reinvestedValue))}
+                        placeholder="0,00"
+                        onChange={(e) => handleReinvestedInput(sale.itemId, e.target.value)}
+                        onBlur={() => setReinvestedInput(prev => { const n = { ...prev }; delete n[sale.itemId]; return n; })}
+                        className="w-full bg-transparent text-center text-white focus:outline-none border-none font-semibold font-mono"
+                      />
+                    </div>
+                  </div>
+
                   {/* Gasto extra */}
                   <div className="flex flex-col items-center justify-center text-center">
                     <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider mb-1.5">Gasto Extra</span>
@@ -1021,9 +1092,11 @@ export default function DailyItemSalesTable({
                       <span className="text-white/35 mr-0.5">R$</span>
                       <input
                         type="text"
-                        value={sale.expenses === 0 ? "" : sale.expenses}
+                        inputMode="decimal"
+                        value={expensesInput[sale.itemId] !== undefined ? expensesInput[sale.itemId] : (sale.expenses === 0 ? "" : String(sale.expenses))}
                         placeholder="0,00"
                         onChange={(e) => handleExpensesInput(sale.itemId, e.target.value)}
+                        onBlur={() => setExpensesInput(prev => { const n = { ...prev }; delete n[sale.itemId]; return n; })}
                         className="w-full bg-transparent text-center text-white focus:outline-none border-none font-semibold font-mono"
                       />
                     </div>
@@ -1051,7 +1124,7 @@ export default function DailyItemSalesTable({
               Totais consolidados deste dia ({activeSalesForStats.length} produtos ativos)
             </p>
             <p className="text-[10px] text-white/35 font-mono mt-0.5">
-              Fórmulas automáticas: Sobra = Carga - Vendidos - Doce Piloto | Lucro = Vendido - Doce - Gasto
+              Fórmulas: Lucro = Faturamento - Custo dos Produtos (vendidos + piloto) - Gastos | Disponível = Lucro - Reinvestido
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs font-mono text-white/70">
@@ -1064,11 +1137,19 @@ export default function DailyItemSalesTable({
             </p>
             <span className="text-white/10 hidden sm:inline">|</span>
             <p>
+              Reinvestido: <span className="font-bold text-amber-400 text-sm">{formatCurrency(totalReinvestedItem)}</span>
+            </p>
+            <span className="text-white/10 hidden sm:inline">|</span>
+            <p>
               Gasto Extra: <span className="font-bold text-red-400 text-sm">{formatCurrency(totalExpenses)}</span>
             </p>
             <span className="text-white/10 hidden sm:inline">|</span>
             <p>
               Lucro Líquido: <span className="font-bold text-indigo-400 text-sm">{formatCurrency(netProfitTotal)}</span>
+            </p>
+            <span className="text-white/10 hidden sm:inline">|</span>
+            <p>
+              Disponível: <span className="font-bold text-emerald-300 text-sm">{formatCurrency(netProfitTotal - totalReinvestedItem)}</span>
             </p>
           </div>
         </div>
@@ -1173,6 +1254,9 @@ export default function DailyItemSalesTable({
                               <div className="flex justify-between font-bold text-slate-800">
                                 <span>{sale.itemName}</span>
                                 <span>{formatCurrency(sale.soldValue)}</span>
+                              </div>
+                              <div className="flex justify-between text-slate-500 text-[9px]">
+                                <span>Venda: {formatCurrency(sale.salePrice)} | Custo: {formatCurrency(sale.price)} ({sale.unitsPerPackage} un)</span>
                               </div>
                               <div className="flex justify-between text-slate-500 text-[9px]">
                                 <span>Carga: {sale.loadedQuantity} un | Vendido: {sale.soldQuantity} un</span>

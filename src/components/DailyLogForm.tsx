@@ -119,8 +119,9 @@ export default function DailyLogForm({ isOpen, onClose, onSubmit, editingLog, it
     const updated = [...restocks, newRestockItem];
     setRestocks(updated);
 
-    const total = updated.reduce((sum, r) => sum + r.totalCost, 0);
-    setReinvestedValue(total);
+    const totalRestocks = updated.reduce((sum, r) => sum + r.totalCost, 0);
+    const itemSalesReinvested = editingLog?.itemSales ? editingLog.itemSales.reduce((s, i) => s + (i.reinvestedValue || 0), 0) : 0;
+    setReinvestedValue(totalRestocks + itemSalesReinvested);
 
     setSelectedItemId("");
     setRestockQty("");
@@ -131,8 +132,9 @@ export default function DailyLogForm({ isOpen, onClose, onSubmit, editingLog, it
     const updated = restocks.filter(r => r.id !== id);
     setRestocks(updated);
 
-    const total = updated.reduce((sum, r) => sum + r.totalCost, 0);
-    setReinvestedValue(total);
+    const totalRestocks = updated.reduce((sum, r) => sum + r.totalCost, 0);
+    const itemSalesReinvested = editingLog?.itemSales ? editingLog.itemSales.reduce((s, i) => s + (i.reinvestedValue || 0), 0) : 0;
+    setReinvestedValue(totalRestocks + itemSalesReinvested);
   };
 
   const handleSubmit = (e: FormEvent) => {
@@ -306,22 +308,12 @@ export default function DailyLogForm({ isOpen, onClose, onSubmit, editingLog, it
                       min="0"
                       step="0.01"
                       value={reinvestedValue}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setReinvestedValue(val === "" ? "" : Number(val));
-                        if (errors.reinvestedValue) setErrors(prev => ({ ...prev, reinvestedValue: "" }));
-                      }}
+                      readOnly
                       placeholder="0,00"
-                      className={`w-full pl-9 pr-4 py-2.5 rounded-xl text-sm transition-all focus:outline-none focus:ring-2 ${
-                        errors.reinvestedValue
-                          ? "border-red-500/50 focus:ring-red-500/20 focus:border-red-500/80 bg-red-500/5 text-white placeholder:text-white/30"
-                          : "bg-white/5 border border-white/10 text-white placeholder:text-white/20 focus:ring-white/20 focus:border-white/30"
-                      }`}
+                      className="w-full pl-9 pr-4 py-2.5 rounded-xl text-sm bg-white/5 border border-white/10 text-white/50 cursor-not-allowed focus:outline-none"
                     />
                   </div>
-                  {errors.reinvestedValue && (
-                    <p className="text-xs text-red-400 mt-1 font-medium">{errors.reinvestedValue}</p>
-                  )}
+                  <p className="text-[10px] text-white/40 mt-1 font-mono leading-tight">Valor calculado automaticamente (Itens + Compras Diversas).</p>
                 </div>
 
                 {/* Daily Expenses (Gasto do dia) */}
@@ -397,7 +389,7 @@ export default function DailyLogForm({ isOpen, onClose, onSubmit, editingLog, it
                       <option value="">Selecionar...</option>
                       {items.map(item => (
                         <option key={item.id} value={item.id}>
-                          {item.name} (R$ {item.price.toFixed(2)})
+                          {item.name} (Custo: R$ {item.price.toFixed(2)})
                         </option>
                       ))}
                     </select>
@@ -405,13 +397,13 @@ export default function DailyLogForm({ isOpen, onClose, onSubmit, editingLog, it
 
                   {/* Quantity */}
                   <div className="col-span-3">
-                    <label className="block text-[10px] font-bold text-white/40 mb-1">Qtd</label>
+                    <label className="block text-[10px] font-bold text-white/40 mb-1">Qtd (Pacotes)</label>
                     <input
                       type="number"
                       min="1"
                       value={restockQty}
                       onChange={(e) => setRestockQty(e.target.value === "" ? "" : Number(e.target.value))}
-                      placeholder="Qtd"
+                      placeholder="Pacotes"
                       className="w-full px-2 py-1.5 rounded-lg text-xs bg-slate-900 border border-white/10 text-white placeholder:text-white/25 focus:ring-1 focus:ring-white/20"
                     />
                   </div>
@@ -419,7 +411,7 @@ export default function DailyLogForm({ isOpen, onClose, onSubmit, editingLog, it
                   {/* Unit Cost */}
                   <div className="col-span-3 flex items-end gap-1">
                     <div className="flex-1">
-                      <label className="block text-[10px] font-bold text-white/40 mb-1">Custo Un</label>
+                      <label className="block text-[10px] font-bold text-white/40 mb-1">Custo/Pacote</label>
                       <input
                         type="number"
                         step="0.01"
@@ -456,7 +448,7 @@ export default function DailyLogForm({ isOpen, onClose, onSubmit, editingLog, it
                         <div className="min-w-0 flex-1">
                           <span className="font-semibold text-white truncate block">{r.itemName}</span>
                           <span className="text-[10px] text-white/50">
-                            {r.quantity} un × R$ {r.unitCost.toFixed(2)}
+                            {r.quantity} pac × R$ {r.unitCost.toFixed(2)}
                           </span>
                         </div>
                         <div className="flex items-center gap-3 shrink-0">

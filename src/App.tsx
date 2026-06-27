@@ -29,7 +29,7 @@ import {
 import { auth, db } from "./lib/firebase";
 import Login from "./components/Login";
 
-import { Item, DailyLog, DailyItemSale, RestockItem, getPilotSweetUnitCost, getItemUnitValue } from "./types";
+import { Item, DailyLog, DailyItemSale, RestockItem } from "./types";
 import { INITIAL_ITEMS, INITIAL_DAILY_LOGS } from "./data";
 import ItemTable from "./components/ItemTable";
 import ItemForm from "./components/ItemForm";
@@ -210,7 +210,9 @@ export default function App() {
         price: formData.price,
         category: formData.category,
         currentStock: formData.currentStock ?? 0,
-        minStock: formData.minStock ?? 0
+        minStock: formData.minStock ?? 0,
+        salePrice: formData.salePrice ?? 1.0,
+        unitsPerPackage: formData.unitsPerPackage ?? 1
       };
       saveItems([newItem, ...items]);
       showToast(`O item "${formData.name}" foi cadastrado com sucesso!`, "success");
@@ -263,12 +265,16 @@ export default function App() {
   const syncRestockStock = (oldRestocks: RestockItem[] = [], newRestocks: RestockItem[] = []) => {
     const prevMap: { [itemId: string]: number } = {};
     oldRestocks.forEach(r => {
-      prevMap[r.itemId] = (prevMap[r.itemId] || 0) + r.quantity;
+      const item = items.find(i => i.id === r.itemId);
+      const units = r.quantity * (item?.unitsPerPackage ?? 1);
+      prevMap[r.itemId] = (prevMap[r.itemId] || 0) + units;
     });
 
     const newMap: { [itemId: string]: number } = {};
     newRestocks.forEach(r => {
-      newMap[r.itemId] = (newMap[r.itemId] || 0) + r.quantity;
+      const item = items.find(i => i.id === r.itemId);
+      const units = r.quantity * (item?.unitsPerPackage ?? 1);
+      newMap[r.itemId] = (newMap[r.itemId] || 0) + units;
     });
 
     const allItemIds = new Set([...Object.keys(prevMap), ...Object.keys(newMap)]);
@@ -308,11 +314,24 @@ export default function App() {
       const oldLog = dailyLogs.find(l => l.id === formData.id);
       syncRestockStock(oldLog?.restocks || [], formData.restocks || []);
 
-      const updated = dailyLogs.map((log) =>
-        log.id === formData.id
-          ? { ...log, ...formData }
-          : log
-      );
+      const updated = dailyLogs.map((log) => {
+        if (log.id === formData.id) {
+          const totalItemReinvested = log.itemSales ? log.itemSales.reduce((sum, s) => sum + (s.reinvestedValue || 0), 0) : 0;
+          const totalRestocks = formData.restocks ? formData.restocks.reduce((sum, r) => sum + r.totalCost, 0) : 0;
+          const mergedReinvested = totalItemReinvested + totalRestocks;
+          
+          return {
+            ...log,
+            ...formData,
+            soldValue: log.itemSales && log.itemSales.length > 0 ? log.soldValue : formData.soldValue,
+            quantityToSell: log.itemSales && log.itemSales.length > 0 ? log.quantityToSell : formData.quantityToSell,
+            pilotCost: log.itemSales && log.itemSales.length > 0 ? log.pilotCost : formData.pilotCost,
+            expenses: log.itemSales && log.itemSales.length > 0 ? log.expenses : formData.expenses,
+            reinvestedValue: mergedReinvested
+          };
+        }
+        return log;
+      });
       saveDailyLogs(updated);
       showToast("Registro diário atualizado com sucesso!", "success");
     } else {
@@ -390,7 +409,9 @@ export default function App() {
 
         const revertRestockMap: { [itemId: string]: number } = {};
         restocksToRevert.forEach(r => {
-          revertRestockMap[r.itemId] = (revertRestockMap[r.itemId] || 0) + r.quantity;
+          const item = items.find(i => i.id === r.itemId);
+          const units = r.quantity * (item?.unitsPerPackage ?? 1);
+          revertRestockMap[r.itemId] = (revertRestockMap[r.itemId] || 0) + units;
         });
 
         const allAffected = new Set([...Object.keys(refundMap), ...Object.keys(revertRestockMap)]);
@@ -457,7 +478,10 @@ export default function App() {
       const totalSoldQty = busSales.reduce((sum, v) => sum + v, 0);
 
       // Auto-compute pilot gift units as busesBoarded, unless pilotCost was manually updated
-      const unitPilotCost = getPilotSweetUnitCost(itemDetails.name);
+      const unitSalePrice = mergedFields.salePrice ?? itemDetails.salePrice ?? 1.0;
+      const unitsPerPkg = mergedFields.unitsPerPackage ?? itemDetails.unitsPerPackage ?? 1;
+      // Pilot is valued at SALE price (revenue lost by giving it away)
+      const unitPilotCost = unitSalePrice;
       const pilotSweetsQty = updatedFields.pilotCost !== undefined
         ? Math.round(updatedFields.pilotCost / unitPilotCost)
         : (existing.pilotCost !== undefined ? Math.round(existing.pilotCost / unitPilotCost) : busesBoarded);
@@ -466,6 +490,7 @@ export default function App() {
       const leftoverQuantity = Math.max(0, loadedQuantity - totalSoldQty - pilotSweetsQty);
       const pilotCost = updatedFields.pilotCost !== undefined ? updatedFields.pilotCost : (pilotSweetsQty * unitPilotCost);
       const expenses = mergedFields.expenses;
+      const reinvestedValue = mergedFields.reinvestedValue;
 
       updatedSales[existingIndex] = {
         ...mergedFields,
@@ -474,7 +499,10 @@ export default function App() {
         busesBoarded,
         pilotCost,
         expenses,
-        busSales
+        reinvestedValue,
+        busSales,
+        salePrice: unitSalePrice,
+        unitsPerPackage: unitsPerPkg
       };
     } else {
       // Create a brand new record for this product
@@ -483,7 +511,10 @@ export default function App() {
       const totalSoldQty = busSales.reduce((sum, v) => sum + v, 0);
       const loadedQuantity = updatedFields.loadedQuantity ?? 0;
 
-      const unitPilotCost = getPilotSweetUnitCost(itemDetails.name);
+      const unitSalePrice = itemDetails.salePrice ?? 1.0;
+      const unitsPerPkg = itemDetails.unitsPerPackage ?? 1;
+      // Pilot is valued at SALE price (revenue lost by giving it away)
+      const unitPilotCost = unitSalePrice;
       const pilotSweetsQty = busesBoarded;
       const leftoverQuantity = Math.max(0, loadedQuantity - totalSoldQty - pilotSweetsQty);
       const pilotCost = pilotSweetsQty * unitPilotCost;
@@ -498,7 +529,10 @@ export default function App() {
         busesBoarded,
         pilotCost,
         expenses: updatedFields.expenses ?? 0,
-        busSales
+        reinvestedValue: updatedFields.reinvestedValue ?? 0,
+        busSales,
+        salePrice: unitSalePrice,
+        unitsPerPackage: itemDetails.unitsPerPackage ?? 1
       };
       updatedSales.push(newSale);
     }
@@ -507,32 +541,41 @@ export default function App() {
     const totalLoaded = updatedSales.reduce((sum, s) => sum + s.loadedQuantity, 0);
     const totalSoldVal = updatedSales.reduce((sum, s) => {
       const soldQty = s.busSales ? s.busSales.reduce((acc, v) => acc + v, 0) : (s.loadedQuantity - s.leftoverQuantity);
-      return sum + (soldQty * getItemUnitValue(s.itemName));
+      const unitSalePrice = s.salePrice ?? items.find(it => it.id === s.itemId)?.salePrice ?? 1.0;
+      return sum + (soldQty * unitSalePrice);
     }, 0);
     const totalPilot = updatedSales.reduce((sum, s) => sum + s.pilotCost, 0);
     const totalExp = updatedSales.reduce((sum, s) => sum + s.expenses, 0);
+    const totalItemReinvested = updatedSales.reduce((sum, s) => sum + (s.reinvestedValue || 0), 0);
 
-    const updatedLogs = dailyLogs.map(log =>
-      log.id === selectedLogId
-        ? {
+    const updatedLogs = dailyLogs.map(log => {
+      if (log.id === selectedLogId) {
+        const totalRestocks = log.restocks ? log.restocks.reduce((sum, r) => sum + r.totalCost, 0) : 0;
+        return {
           ...log,
           itemSales: updatedSales,
           quantityToSell: totalLoaded,
           soldValue: totalSoldVal,
           pilotCost: totalPilot,
-          expenses: totalExp
-        }
-        : log
-    );
+          expenses: totalExp,
+          reinvestedValue: totalItemReinvested + totalRestocks
+        };
+      }
+      return log;
+    });
 
     // Stock Sync: Deduct the difference between what was historically removed and the new removed amount
     const existingSaleForStock = currentSales.find(s => s.itemId === itemId);
     const prevDeducted = existingSaleForStock ? (existingSaleForStock.loadedQuantity - existingSaleForStock.leftoverQuantity) : 0;
+    const prevReinvested = existingSaleForStock ? (existingSaleForStock.reinvestedValue || 0) : 0;
+    const prevAdded = Math.round((prevReinvested / (existingSaleForStock?.price || 1)) * (existingSaleForStock?.unitsPerPackage || 1));
 
     const updatedSaleForStock = updatedSales.find(s => s.itemId === itemId)!;
     const newDeducted = updatedSaleForStock.loadedQuantity - updatedSaleForStock.leftoverQuantity;
+    const newReinvested = updatedSaleForStock.reinvestedValue || 0;
+    const newAdded = Math.round((newReinvested / updatedSaleForStock.price) * (updatedSaleForStock.unitsPerPackage || 1));
 
-    const stockDelta = prevDeducted - newDeducted;
+    const stockDelta = (prevDeducted - newDeducted) + (newAdded - prevAdded);
 
     if (stockDelta !== 0) {
       const newItemsList = items.map(i =>
@@ -564,10 +607,13 @@ export default function App() {
         // Stock Sync: Refund stock if this sale is cleared
         const existingSaleForStock = currentSales.find(s => s.itemId === itemId);
         const prevDeducted = existingSaleForStock ? (existingSaleForStock.loadedQuantity - existingSaleForStock.leftoverQuantity) : 0;
-        if (prevDeducted > 0) {
+        const prevReinvested = existingSaleForStock ? (existingSaleForStock.reinvestedValue || 0) : 0;
+        const prevAdded = Math.round((prevReinvested / (existingSaleForStock?.price || 1)) * (existingSaleForStock?.unitsPerPackage || 1));
+        const stockDelta = prevDeducted - prevAdded;
+        if (stockDelta !== 0) {
           const newItemsList = items.map(i =>
             i.id === itemId
-              ? { ...i, currentStock: (i.currentStock ?? 0) + prevDeducted }
+              ? { ...i, currentStock: Math.max(0, (i.currentStock ?? 0) + stockDelta) }
               : i
           );
           saveItems(newItemsList);
@@ -579,23 +625,28 @@ export default function App() {
         const totalLoaded = updatedSales.reduce((sum, s) => sum + s.loadedQuantity, 0);
         const totalSoldVal = updatedSales.reduce((sum, s) => {
           const soldQty = s.busSales ? s.busSales.reduce((acc, v) => acc + v, 0) : (s.loadedQuantity - s.leftoverQuantity);
-          return sum + (soldQty * getItemUnitValue(s.itemName));
+          const unitSalePrice = s.salePrice ?? items.find(it => it.id === s.itemId)?.salePrice ?? 1.0;
+          return sum + (soldQty * unitSalePrice);
         }, 0);
         const totalPilot = updatedSales.reduce((sum, s) => sum + s.pilotCost, 0);
         const totalExp = updatedSales.reduce((sum, s) => sum + s.expenses, 0);
+        const totalItemReinvested = updatedSales.reduce((sum, s) => sum + (s.reinvestedValue || 0), 0);
 
-        const updatedLogs = dailyLogs.map(log =>
-          log.id === selectedLogId
-            ? {
+        const updatedLogs = dailyLogs.map(log => {
+          if (log.id === selectedLogId) {
+            const totalRestocks = log.restocks ? log.restocks.reduce((sum, r) => sum + r.totalCost, 0) : 0;
+            return {
               ...log,
               itemSales: updatedSales,
               quantityToSell: totalLoaded,
               soldValue: totalSoldVal,
               pilotCost: totalPilot,
-              expenses: totalExp
-            }
-            : log
-        );
+              expenses: totalExp,
+              reinvestedValue: totalItemReinvested + totalRestocks
+            };
+          }
+          return log;
+        });
 
         saveDailyLogs(updatedLogs);
         showToast("Lançamentos do produto zerados.", "info");

@@ -45,6 +45,34 @@ export default function DailyLogTable({ logs, onEdit, onDelete, onAddNew, select
     return `${day}/${month}/${year}`;
   };
 
+  const getLogProfit = (log: DailyLog) => {
+    let costOfGoodsSold = 0;
+    if (log.itemSales && log.itemSales.length > 0) {
+      log.itemSales.forEach(s => {
+        const sold = s.busSales ? s.busSales.reduce((sum, v) => sum + v, 0) : (s.loadedQuantity - s.leftoverQuantity);
+        const qty = Math.max(0, sold);
+        
+        const unitSalePrice = s.salePrice ?? 1.0;
+        const unitCost = s.price / (s.unitsPerPackage || 1);
+        
+        let pilotQty = s.busesBoarded || 0;
+        if (s.pilotCost !== undefined) {
+          if (unitCost > 0 && s.pilotCost % unitCost === 0) {
+            pilotQty = Math.round(s.pilotCost / unitCost);
+          } else if (unitSalePrice > 0 && s.pilotCost % unitSalePrice === 0) {
+            pilotQty = Math.round(s.pilotCost / unitSalePrice);
+          } else {
+            pilotQty = unitCost > 0 ? Math.round(s.pilotCost / unitCost) : 0;
+          }
+        }
+        costOfGoodsSold += (qty + pilotQty) * unitCost;
+      });
+      return (log.soldValue ?? 0) - costOfGoodsSold - (log.expenses ?? 0);
+    }
+    
+    return (log.soldValue ?? 0) - (log.pilotCost ?? 0) - (log.expenses ?? 0);
+  };
+
   const handleSort = (field: SortField) => {
     if (sortField === field) {
       setSortOrder(sortOrder === "asc" ? "desc" : "asc");
@@ -93,8 +121,8 @@ export default function DailyLogTable({ logs, onEdit, onDelete, onAddNew, select
       let valueB: string | number;
 
       if (sortField === "netProfit") {
-        valueA = (a.soldValue ?? 0) - (a.pilotCost ?? 0) - (a.reinvestedValue ?? 0) - (a.expenses ?? 0);
-        valueB = (b.soldValue ?? 0) - (b.pilotCost ?? 0) - (b.reinvestedValue ?? 0) - (b.expenses ?? 0);
+        valueA = getLogProfit(a);
+        valueB = getLogProfit(b);
       } else {
         valueA = a[sortField] ?? 0;
         valueB = b[sortField] ?? 0;
@@ -119,7 +147,7 @@ export default function DailyLogTable({ logs, onEdit, onDelete, onAddNew, select
     csvContent += "Data,Quantidade Venda,Valor Vendido,Custo Piloto,Reinvestido,Gasto Dia,Lucro Liquido,Observacoes\n";
 
     filteredLogs.forEach(log => {
-      const profit = (log.soldValue ?? 0) - (log.pilotCost ?? 0) - (log.reinvestedValue ?? 0) - (log.expenses ?? 0);
+      const profit = getLogProfit(log);
       const notesEscaped = log.notes ? `"${log.notes.replace(/"/g, '""')}"` : "";
       csvContent += `${formatDate(log.date)},${log.quantityToSell || 0},${(log.soldValue || 0).toFixed(2)},${(log.pilotCost || 0).toFixed(2)},${(log.reinvestedValue || 0).toFixed(2)},${(log.expenses || 0).toFixed(2)},${profit.toFixed(2)},${notesEscaped}\n`;
     });
@@ -291,7 +319,7 @@ export default function DailyLogTable({ logs, onEdit, onDelete, onAddNew, select
             <tbody className="divide-y divide-white/5">
               <AnimatePresence initial={false}>
                 {sortedLogs.map((log) => {
-                  const profit = (log.soldValue ?? 0) - (log.pilotCost ?? 0) - (log.reinvestedValue ?? 0) - (log.expenses ?? 0);
+                  const profit = getLogProfit(log);
                   return (
                     <motion.tr
                       id={`log-row-${log.id}`}
@@ -419,7 +447,7 @@ export default function DailyLogTable({ logs, onEdit, onDelete, onAddNew, select
               </p>
               <span className="hidden sm:inline text-white/10">|</span>
               <p>
-                Lucro Acumulado: <span className="font-bold text-indigo-400 font-sans text-sm">{formatCurrency(sortedLogs.reduce((sum, item) => sum + ((item.soldValue ?? 0) - (item.pilotCost ?? 0) - (item.reinvestedValue ?? 0) - (item.expenses ?? 0)), 0))}</span>
+                Lucro Acumulado: <span className="font-bold text-indigo-400 font-sans text-sm">{formatCurrency(sortedLogs.reduce((sum, item) => sum + getLogProfit(item), 0))}</span>
               </p>
             </div>
           </div>

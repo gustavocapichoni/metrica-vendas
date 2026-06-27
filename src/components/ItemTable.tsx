@@ -12,8 +12,14 @@ interface ItemTableProps {
   onAddNew: () => void;
 }
 
-type SortField = "name" | "price" | "totalSold" | "profit" | "currentStock";
+type SortField = "name" | "price" | "salePrice" | "totalSold" | "profit" | "currentStock";
 type SortOrder = "asc" | "desc";
+
+interface ItemWithSales extends Item {
+  totalSold: number;
+  totalSoldQty: number;
+  totalCost: number;
+}
 
 export default function ItemTable({ items, logs, onEdit, onDelete, onAddNew }: ItemTableProps) {
   const [searchTerm, setSearchTerm] = useState("");
@@ -21,9 +27,9 @@ export default function ItemTable({ items, logs, onEdit, onDelete, onAddNew }: I
   const [sortField, setSortField] = useState<SortField>("name");
   const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
 
-  const itemsWithSales = useMemo(() => {
-    const salesMap: Record<string, { qty: number; rev: number }> = {};
-    items.forEach(i => { salesMap[i.id] = { qty: 0, rev: 0 }; });
+  const itemsWithSales = useMemo<ItemWithSales[]>(() => {
+    const salesMap: Record<string, { qty: number; rev: number; cost: number }> = {};
+    items.forEach(i => { salesMap[i.id] = { qty: 0, rev: 0, cost: 0 }; });
     logs.forEach(log => {
       if (log.itemSales) {
         log.itemSales.forEach(s => {
@@ -31,7 +37,26 @@ export default function ItemTable({ items, logs, onEdit, onDelete, onAddNew }: I
             const soldQty = s.busSales ? s.busSales.reduce((acc, v) => acc + v, 0) : (s.loadedQuantity - s.leftoverQuantity);
             const qty = Math.max(0, soldQty);
             salesMap[s.itemId].qty += qty;
-            salesMap[s.itemId].rev += qty * s.price;
+            
+            // Find current item to get its salePrice as fallback
+            const item = items.find(it => it.id === s.itemId);
+            const unitSalePrice = s.salePrice ?? item?.salePrice ?? 1.0;
+            const unitCost = item ? (item.price / (item.unitsPerPackage || 1)) : 0;
+
+            let pilotSweetsQty = s.busSales ? s.busSales.length : 0;
+            if (s.pilotCost !== undefined) {
+              if (unitCost > 0 && s.pilotCost % unitCost === 0) {
+                pilotSweetsQty = Math.round(s.pilotCost / unitCost);
+              } else if (unitSalePrice > 0 && s.pilotCost % unitSalePrice === 0) {
+                pilotSweetsQty = Math.round(s.pilotCost / unitSalePrice);
+              } else {
+                pilotSweetsQty = unitCost > 0 ? Math.round(s.pilotCost / unitCost) : 0;
+              }
+            }
+            
+            const totalConsumedQty = qty + pilotSweetsQty;
+            salesMap[s.itemId].rev += qty * unitSalePrice;
+            salesMap[s.itemId].cost += totalConsumedQty * unitCost;
           }
         });
       }
@@ -40,7 +65,8 @@ export default function ItemTable({ items, logs, onEdit, onDelete, onAddNew }: I
     return items.map(item => ({
       ...item,
       totalSold: salesMap[item.id]?.rev || 0,
-      totalSoldQty: salesMap[item.id]?.qty || 0
+      totalSoldQty: salesMap[item.id]?.qty || 0,
+      totalCost: salesMap[item.id]?.cost || 0
     }));
   }, [items, logs]);
 
@@ -48,12 +74,12 @@ export default function ItemTable({ items, logs, onEdit, onDelete, onAddNew }: I
     if (filteredItems.length === 0) return;
 
     let csvContent = "\uFEFF"; // UTF-8 BOM
-    csvContent += "Nome do Produto,Categoria,Preco Unitario,Estoque Atual,Estoque Minimo,Total Vendido,Lucro Estimado\n";
+    csvContent += "Nome do Produto,Categoria,Preço de Custo (Pacote),Unidades por Pacote,Preço de Venda (Unidade),Estoque Atual,Estoque Mínimo,Qtd Vendida,Total Vendido,Lucro Real\n";
 
     filteredItems.forEach(item => {
-      const profit = item.totalSold - item.price;
+      const profit = item.totalSold - item.totalCost;
       const nameEscaped = `"${item.name.replace(/"/g, '""')}"`;
-      csvContent += `${nameEscaped},${item.category || "Outros"},${item.price.toFixed(2)},${item.currentStock ?? 0},${item.minStock ?? 0},${item.totalSold.toFixed(2)},${profit.toFixed(2)}\n`;
+      csvContent += `${nameEscaped},${item.category || "Outros"},${item.price.toFixed(2)},${item.unitsPerPackage || 1},${item.salePrice.toFixed(2)},${item.currentStock ?? 0},${item.minStock ?? 0},${item.totalSoldQty},${item.totalSold.toFixed(2)},${profit.toFixed(2)}\n`;
     });
 
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
@@ -97,11 +123,11 @@ export default function ItemTable({ items, logs, onEdit, onDelete, onAddNew }: I
     let valueB: string | number;
 
     if (sortField === "profit") {
-      valueA = a.totalSold - a.price;
-      valueB = b.totalSold - b.price;
+      valueA = a.totalSold - a.totalCost;
+      valueB = b.totalSold - b.totalCost;
     } else {
-      valueA = a[sortField];
-      valueB = b[sortField];
+      valueA = a[sortField] ?? 0;
+      valueB = b[sortField] ?? 0;
     }
 
     if (typeof valueA === "string" && typeof valueB === "string") {
@@ -227,7 +253,17 @@ export default function ItemTable({ items, logs, onEdit, onDelete, onAddNew }: I
                   className="px-6 py-4 text-xs font-bold text-white/40 uppercase tracking-wider cursor-pointer hover:bg-white/5 transition-colors group text-right select-none"
                 >
                   <div className="flex items-center justify-end gap-1.5">
-                    <span>Preço Unitário</span>
+                    <span>Custo (Pacote)</span>
+                    <ArrowUpDown size={12} className="text-white/30 group-hover:text-white/80 transition-colors" />
+                  </div>
+                </th>
+                <th 
+                  id="th-saleprice"
+                  onClick={() => handleSort("salePrice")}
+                  className="px-6 py-4 text-xs font-bold text-white/40 uppercase tracking-wider cursor-pointer hover:bg-white/5 transition-colors group text-right select-none"
+                >
+                  <div className="flex items-center justify-end gap-1.5">
+                    <span>Venda (Unidade)</span>
                     <ArrowUpDown size={12} className="text-white/30 group-hover:text-white/80 transition-colors" />
                   </div>
                 </th>
@@ -269,7 +305,7 @@ export default function ItemTable({ items, logs, onEdit, onDelete, onAddNew }: I
             <tbody className="divide-y divide-white/5">
               <AnimatePresence initial={false}>
                 {sortedItems.map((item) => {
-                  const profit = item.totalSold - item.price;
+                  const profit = item.totalSold - item.totalCost;
                   return (
                     <motion.tr
                       id={`row-${item.id}`}
@@ -293,9 +329,15 @@ export default function ItemTable({ items, logs, onEdit, onDelete, onAddNew }: I
                         </span>
                       </td>
 
-                      {/* Price */}
+                      {/* Price (Cost/Package) */}
                       <td className="px-6 py-4 text-right font-mono text-sm text-slate-300 font-medium">
-                        {formatCurrency(item.price)}
+                        <div>{formatCurrency(item.price)}</div>
+                        <div className="text-[10px] text-white/40 mt-0.5">{item.unitsPerPackage || 1} un/pac</div>
+                      </td>
+
+                      {/* Sale Price (Unit) */}
+                      <td className="px-6 py-4 text-right font-mono text-sm text-slate-300 font-medium">
+                        {formatCurrency(item.salePrice)}
                       </td>
 
                       {/* Stock */}
@@ -316,10 +358,10 @@ export default function ItemTable({ items, logs, onEdit, onDelete, onAddNew }: I
                                </span>
                                {stock <= min && stock > 0 && (
                                  <span className="text-[9px] text-amber-500/80 font-bold uppercase tracking-wider animate-pulse">Baixo</span>
-                               )}
+                                )}
                                {stock === 0 && (
                                  <span className="text-[9px] text-red-500/80 font-bold uppercase tracking-wider animate-pulse">Esgotado</span>
-                               )}
+                                )}
                              </div>
                            );
                         })()}
@@ -373,7 +415,7 @@ export default function ItemTable({ items, logs, onEdit, onDelete, onAddNew }: I
           </p>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 sm:gap-6 text-xs text-white/50 font-mono">
             <p>
-              Soma Preço Unitário: <span className="font-bold text-slate-300 font-sans text-sm">{formatCurrency(sortedItems.reduce((sum, item) => sum + item.price, 0))}</span>
+              Soma Custo/Pacote: <span className="font-bold text-slate-300 font-sans text-sm">{formatCurrency(sortedItems.reduce((sum, item) => sum + item.price, 0))}</span>
             </p>
             <span className="hidden sm:inline text-white/10">|</span>
             <p>
@@ -381,7 +423,9 @@ export default function ItemTable({ items, logs, onEdit, onDelete, onAddNew }: I
             </p>
             <span className="hidden sm:inline text-white/10">|</span>
             <p>
-              Lucro Total: <span className="font-bold text-indigo-400 font-sans text-sm">{formatCurrency(sortedItems.reduce((sum, item) => sum + (item.totalSold - item.price), 0))}</span>
+              Lucro Total: <span className="font-bold text-indigo-400 font-sans text-sm">{formatCurrency(sortedItems.reduce((sum, item) => {
+                return sum + (item.totalSold - item.totalCost);
+              }, 0))}</span>
             </p>
           </div>
         </div>

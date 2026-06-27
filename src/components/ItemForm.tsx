@@ -17,6 +17,8 @@ export default function ItemForm({ isOpen, onClose, onSubmit, editingItem }: Ite
   const [category, setCategory] = useState("Balas");
   const [currentStock, setCurrentStock] = useState<number | "">("");
   const [minStock, setMinStock] = useState<number | "">("");
+  const [salePrice, setSalePrice] = useState<number | "">("");
+  const [unitsPerPackage, setUnitsPerPackage] = useState<number | "">("");
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
   // Reset form or populate when editingItem changes
@@ -27,6 +29,8 @@ export default function ItemForm({ isOpen, onClose, onSubmit, editingItem }: Ite
       setCategory(editingItem.category || "Balas");
       setCurrentStock(editingItem.currentStock ?? 0);
       setMinStock(editingItem.minStock ?? 0);
+      setSalePrice(editingItem.salePrice ?? "");
+      setUnitsPerPackage(editingItem.unitsPerPackage ?? 1);
       setErrors({});
     } else {
       setName("");
@@ -34,6 +38,8 @@ export default function ItemForm({ isOpen, onClose, onSubmit, editingItem }: Ite
       setCategory("Balas");
       setCurrentStock("");
       setMinStock("");
+      setSalePrice("");
+      setUnitsPerPackage(1);
       setErrors({});
     }
   }, [editingItem, isOpen]);
@@ -46,7 +52,15 @@ export default function ItemForm({ isOpen, onClose, onSubmit, editingItem }: Ite
     }
 
     if (price === "" || isNaN(Number(price)) || Number(price) < 0) {
-      newErrors.price = "Insira um preço válido (maior ou igual a zero).";
+      newErrors.price = "Insira um preço de custo válido (maior ou igual a zero).";
+    }
+
+    if (salePrice === "" || isNaN(Number(salePrice)) || Number(salePrice) <= 0) {
+      newErrors.salePrice = "Insira um preço de venda unitário válido (maior que zero).";
+    }
+
+    if (unitsPerPackage === "" || isNaN(Number(unitsPerPackage)) || Number(unitsPerPackage) < 1) {
+      newErrors.unitsPerPackage = "Mínimo 1 unidade por pacote.";
     }
 
     if (currentStock === "" || isNaN(Number(currentStock)) || Number(currentStock) < 0) {
@@ -71,7 +85,9 @@ export default function ItemForm({ isOpen, onClose, onSubmit, editingItem }: Ite
       price: Number(price),
       category,
       currentStock: Number(currentStock),
-      minStock: Number(minStock)
+      minStock: Number(minStock),
+      salePrice: Number(salePrice),
+      unitsPerPackage: Number(unitsPerPackage) || 1
     });
 
     onClose();
@@ -147,37 +163,6 @@ export default function ItemForm({ isOpen, onClose, onSubmit, editingItem }: Ite
                   )}
                 </div>
 
-                {/* Price */}
-                <div>
-                  <label htmlFor="input-price" className="block text-xs font-bold text-white/60 uppercase tracking-wider mb-1">
-                    Preço Unitário *
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40 text-sm font-semibold">R$</span>
-                    <input
-                      id="input-price"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={price}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setPrice(val === "" ? "" : Number(val));
-                        if (errors.price) setErrors(prev => ({ ...prev, price: "" }));
-                      }}
-                      placeholder="0,00"
-                      className={`w-full pl-9 pr-4 py-2.5 rounded-xl text-sm transition-all focus:outline-none focus:ring-2 ${
-                        errors.price
-                          ? "border-red-500/50 focus:ring-red-500/20 focus:border-red-500/80 bg-red-500/5 text-white placeholder:text-white/30"
-                          : "bg-white/5 border border-white/10 text-white placeholder:text-white/20 focus:ring-white/20 focus:border-white/30"
-                      }`}
-                    />
-                  </div>
-                  {errors.price && (
-                    <p className="text-xs text-red-400 mt-1 font-medium">{errors.price}</p>
-                  )}
-                </div>
-
                 {/* Category */}
                 <div>
                   <label htmlFor="input-category" className="block text-xs font-bold text-white/60 uppercase tracking-wider mb-1">
@@ -195,6 +180,99 @@ export default function ItemForm({ isOpen, onClose, onSubmit, editingItem }: Ite
                       </option>
                     ))}
                   </select>
+                </div>
+
+                {/* Grid for Cost Price and Units per Package */}
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Cost Price */}
+                  <div>
+                    <label htmlFor="input-price" className="block text-xs font-bold text-white/60 uppercase tracking-wider mb-1">
+                      Preço de Custo (Pacote) *
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40 text-sm font-semibold">R$</span>
+                      <input
+                        id="input-price"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={price}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setPrice(val === "" ? "" : Number(val));
+                          if (errors.price) setErrors(prev => ({ ...prev, price: "" }));
+                        }}
+                        placeholder="0,00"
+                        className={`w-full pl-9 pr-4 py-2.5 rounded-xl text-sm transition-all focus:outline-none focus:ring-2 ${
+                          errors.price
+                            ? "border-red-500/50 focus:ring-red-500/20 focus:border-red-500/80 bg-red-500/5 text-white placeholder:text-white/30"
+                            : "bg-white/5 border border-white/10 text-white placeholder:text-white/20 focus:ring-white/20 focus:border-white/30"
+                        }`}
+                      />
+                    </div>
+                    {errors.price && (
+                      <p className="text-xs text-red-400 mt-1 font-medium">{errors.price}</p>
+                    )}
+                  </div>
+
+                  {/* Units Per Package */}
+                  <div>
+                    <label htmlFor="input-units-per-package" className="block text-xs font-bold text-white/60 uppercase tracking-wider mb-1">
+                      Unidades por Pacote *
+                    </label>
+                    <input
+                      id="input-units-per-package"
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={unitsPerPackage}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setUnitsPerPackage(val === "" ? "" : Number(val));
+                        if (errors.unitsPerPackage) setErrors(prev => ({ ...prev, unitsPerPackage: "" }));
+                      }}
+                      placeholder="Ex: 30"
+                      className={`w-full px-4 py-2.5 rounded-xl text-sm transition-all focus:outline-none focus:ring-2 ${
+                        errors.unitsPerPackage
+                          ? "border-red-500/50 focus:ring-red-500/20 focus:border-red-500/80 bg-red-500/5 text-white placeholder:text-white/30"
+                          : "bg-white/5 border border-white/10 text-white placeholder:text-white/20 focus:ring-white/20 focus:border-white/30"
+                      }`}
+                    />
+                    {errors.unitsPerPackage && (
+                      <p className="text-xs text-red-400 mt-1 font-medium">{errors.unitsPerPackage}</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Selling Price (Unit) */}
+                <div>
+                  <label htmlFor="input-sale-price" className="block text-xs font-bold text-white/60 uppercase tracking-wider mb-1">
+                    Preço de Venda (Unidade) *
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40 text-sm font-semibold">R$</span>
+                    <input
+                      id="input-sale-price"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={salePrice}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setSalePrice(val === "" ? "" : Number(val));
+                        if (errors.salePrice) setErrors(prev => ({ ...prev, salePrice: "" }));
+                      }}
+                      placeholder="0,00"
+                      className={`w-full pl-9 pr-4 py-2.5 rounded-xl text-sm transition-all focus:outline-none focus:ring-2 ${
+                        errors.salePrice
+                          ? "border-red-500/50 focus:ring-red-500/20 focus:border-red-500/80 bg-red-500/5 text-white placeholder:text-white/30"
+                          : "bg-white/5 border border-white/10 text-white placeholder:text-white/20 focus:ring-white/20 focus:border-white/30"
+                      }`}
+                    />
+                  </div>
+                  {errors.salePrice && (
+                    <p className="text-xs text-red-400 mt-1 font-medium">{errors.salePrice}</p>
+                  )}
                 </div>
 
                 {/* Grid for Stock */}

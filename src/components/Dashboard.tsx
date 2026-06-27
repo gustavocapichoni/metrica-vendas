@@ -62,18 +62,35 @@ export default function Dashboard({ logs, items, onStartToday, onSelectLog, onUp
       totalSoldQty += log.quantityToSell || 0; // approximate sold qty or total logs qty
     });
 
-    // Also calculate actual sold quantities from detailed itemSales
+    // Also calculate actual sold quantities and cost of goods sold from detailed itemSales
     let actualSoldUnits = 0;
+    let totalCostOfGoodsSold = 0;
     logs.forEach(log => {
       if (log.itemSales) {
         log.itemSales.forEach(s => {
           const sold = s.busSales ? s.busSales.reduce((sum, v) => sum + v, 0) : (s.loadedQuantity - s.leftoverQuantity);
-          actualSoldUnits += Math.max(0, sold);
+          const qty = Math.max(0, sold);
+          actualSoldUnits += qty;
+          
+          const unitSalePrice = s.salePrice ?? 1.0;
+          const unitCost = s.price / (s.unitsPerPackage || 1);
+          
+          let pilotQty = s.busesBoarded;
+          if (s.pilotCost !== undefined) {
+            if (unitCost > 0 && s.pilotCost % unitCost === 0) {
+              pilotQty = Math.round(s.pilotCost / unitCost);
+            } else if (unitSalePrice > 0 && s.pilotCost % unitSalePrice === 0) {
+              pilotQty = Math.round(s.pilotCost / unitSalePrice);
+            } else {
+              pilotQty = unitCost > 0 ? Math.round(s.pilotCost / unitCost) : 0;
+            }
+          }
+          totalCostOfGoodsSold += (qty + pilotQty) * unitCost;
         });
       }
     });
 
-    const netProfit = totalRevenue - totalExpenses - totalPilot - totalReinvested;
+    const netProfit = totalRevenue - totalCostOfGoodsSold - totalExpenses;
 
     return {
       totalRevenue,
@@ -91,14 +108,36 @@ export default function Dashboard({ logs, items, onStartToday, onSelectLog, onUp
       .sort((a, b) => a.date.localeCompare(b.date))
       .slice(-10) // last 10 days
       .map(log => {
-        const profit = (log.soldValue ?? 0) - (log.pilotCost ?? 0) - (log.reinvestedValue ?? 0) - (log.expenses ?? 0);
+        let costOfGoodsSold = 0;
+        if (log.itemSales) {
+          log.itemSales.forEach(s => {
+            const sold = s.busSales ? s.busSales.reduce((sum, v) => sum + v, 0) : (s.loadedQuantity - s.leftoverQuantity);
+            const qty = Math.max(0, sold);
+            
+            const unitSalePrice = s.salePrice ?? 1.0;
+            const unitCost = s.price / (s.unitsPerPackage || 1);
+            
+            let pilotQty = s.busesBoarded;
+            if (s.pilotCost !== undefined) {
+              if (unitCost > 0 && s.pilotCost % unitCost === 0) {
+                pilotQty = Math.round(s.pilotCost / unitCost);
+              } else if (unitSalePrice > 0 && s.pilotCost % unitSalePrice === 0) {
+                pilotQty = Math.round(s.pilotCost / unitSalePrice);
+              } else {
+                pilotQty = unitCost > 0 ? Math.round(s.pilotCost / unitCost) : 0;
+              }
+            }
+            costOfGoodsSold += (qty + pilotQty) * unitCost;
+          });
+        }
+
+        const profit = (log.soldValue ?? 0) - costOfGoodsSold - (log.expenses ?? 0);
         return {
           name: formatDate(log.date),
           dateFull: log.date,
           id: log.id,
           Faturamento: log.soldValue || 0,
-          Lucro: profit,
-          Reinvestido: log.reinvestedValue || 0
+          Lucro: profit
         };
       });
   }, [logs]);
@@ -116,7 +155,9 @@ export default function Dashboard({ logs, items, onStartToday, onSelectLog, onUp
             productSalesMap[s.itemName] = { quantity: 0, revenue: 0 };
           }
           productSalesMap[s.itemName].quantity += soldQty;
-          productSalesMap[s.itemName].revenue += soldQty * s.price;
+          
+          const unitSalePrice = s.salePrice ?? 1.0;
+          productSalesMap[s.itemName].revenue += soldQty * unitSalePrice;
         });
       }
     });
@@ -204,8 +245,9 @@ export default function Dashboard({ logs, items, onStartToday, onSelectLog, onUp
     if (!item) return;
 
     const current = item.currentStock ?? 0;
-    const added = Number(inputVal);
-    onUpdateStock(itemId, current + added);
+    const addedPackages = Number(inputVal);
+    const addedUnits = addedPackages * (item.unitsPerPackage ?? 1);
+    onUpdateStock(itemId, current + addedUnits);
     
     // Clear input
     setRestockInputs(prev => ({ ...prev, [itemId]: "" }));
@@ -510,7 +552,7 @@ export default function Dashboard({ logs, items, onStartToday, onSelectLog, onUp
                       <input
                         type="number"
                         min="1"
-                        placeholder="+ Qtd"
+                        placeholder="+ Pac"
                         value={inputVal}
                         onChange={(e) => {
                           const val = e.target.value;

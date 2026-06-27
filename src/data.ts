@@ -8,7 +8,9 @@ export const INITIAL_ITEMS: Item[] = [
     totalSold: 273.00,
     category: "Amendoins",
     currentStock: 50,
-    minStock: 10
+    minStock: 10,
+    salePrice: 10.00,
+    unitsPerPackage: 1
   },
   {
     id: "2",
@@ -17,7 +19,9 @@ export const INITIAL_ITEMS: Item[] = [
     totalSold: 227.50,
     category: "Amendoins",
     currentStock: 50,
-    minStock: 10
+    minStock: 10,
+    salePrice: 10.00,
+    unitsPerPackage: 1
   },
   {
     id: "3",
@@ -26,7 +30,9 @@ export const INITIAL_ITEMS: Item[] = [
     totalSold: 273.00,
     category: "Balas",
     currentStock: 50,
-    minStock: 10
+    minStock: 10,
+    salePrice: 1.00,
+    unitsPerPackage: 30
   },
   {
     id: "4",
@@ -35,7 +41,9 @@ export const INITIAL_ITEMS: Item[] = [
     totalSold: 336.00,
     category: "Balas",
     currentStock: 50,
-    minStock: 10
+    minStock: 10,
+    salePrice: 1.00,
+    unitsPerPackage: 30
   },
   {
     id: "5",
@@ -44,7 +52,9 @@ export const INITIAL_ITEMS: Item[] = [
     totalSold: 435.00,
     category: "Balas",
     currentStock: 50,
-    minStock: 10
+    minStock: 10,
+    salePrice: 1.00,
+    unitsPerPackage: 30
   },
   {
     id: "6",
@@ -53,7 +63,9 @@ export const INITIAL_ITEMS: Item[] = [
     totalSold: 172.80,
     category: "Balas",
     currentStock: 50,
-    minStock: 10
+    minStock: 10,
+    salePrice: 1.00,
+    unitsPerPackage: 30
   },
   {
     id: "7",
@@ -62,7 +74,9 @@ export const INITIAL_ITEMS: Item[] = [
     totalSold: 294.00,
     category: "Balas",
     currentStock: 50,
-    minStock: 10
+    minStock: 10,
+    salePrice: 1.00,
+    unitsPerPackage: 30
   },
   {
     id: "8",
@@ -71,7 +85,9 @@ export const INITIAL_ITEMS: Item[] = [
     totalSold: 372.00,
     category: "Balas",
     currentStock: 50,
-    minStock: 10
+    minStock: 10,
+    salePrice: 1.00,
+    unitsPerPackage: 30
   },
   {
     id: "9",
@@ -80,7 +96,9 @@ export const INITIAL_ITEMS: Item[] = [
     totalSold: 352.00,
     category: "Balas",
     currentStock: 50,
-    minStock: 10
+    minStock: 10,
+    salePrice: 1.00,
+    unitsPerPackage: 30
   },
   {
     id: "10",
@@ -89,7 +107,9 @@ export const INITIAL_ITEMS: Item[] = [
     totalSold: 217.00,
     category: "Balas",
     currentStock: 50,
-    minStock: 10
+    minStock: 10,
+    salePrice: 1.00,
+    unitsPerPackage: 30
   },
   {
     id: "11",
@@ -98,7 +118,9 @@ export const INITIAL_ITEMS: Item[] = [
     totalSold: 255.50,
     category: "Balas",
     currentStock: 50,
-    minStock: 10
+    minStock: 10,
+    salePrice: 1.00,
+    unitsPerPackage: 30
   },
   {
     id: "12",
@@ -107,7 +129,9 @@ export const INITIAL_ITEMS: Item[] = [
     totalSold: 220.50,
     category: "Balas",
     currentStock: 50,
-    minStock: 10
+    minStock: 10,
+    salePrice: 1.00,
+    unitsPerPackage: 30
   },
   {
     id: "13",
@@ -116,7 +140,9 @@ export const INITIAL_ITEMS: Item[] = [
     totalSold: 274.50,
     category: "Balas",
     currentStock: 50,
-    minStock: 10
+    minStock: 10,
+    salePrice: 1.00,
+    unitsPerPackage: 30
   },
   {
     id: "14",
@@ -125,7 +151,9 @@ export const INITIAL_ITEMS: Item[] = [
     totalSold: 468.00,
     category: "Balas",
     currentStock: 50,
-    minStock: 10
+    minStock: 10,
+    salePrice: 1.00,
+    unitsPerPackage: 30
   },
   {
     id: "15",
@@ -134,7 +162,9 @@ export const INITIAL_ITEMS: Item[] = [
     totalSold: 415.80,
     category: "Doces",
     currentStock: 50,
-    minStock: 10
+    minStock: 10,
+    salePrice: 2.00,
+    unitsPerPackage: 50
   },
   {
     id: "16",
@@ -143,7 +173,9 @@ export const INITIAL_ITEMS: Item[] = [
     totalSold: 230.00,
     category: "Doces",
     currentStock: 50,
-    minStock: 10
+    minStock: 10,
+    salePrice: 2.00,
+    unitsPerPackage: 1
   },
   {
     id: "17",
@@ -152,7 +184,9 @@ export const INITIAL_ITEMS: Item[] = [
     totalSold: 141.00,
     category: "Doces",
     currentStock: 50,
-    minStock: 10
+    minStock: 10,
+    salePrice: 2.00,
+    unitsPerPackage: 1
   },
   {
     id: "18",
@@ -161,7 +195,9 @@ export const INITIAL_ITEMS: Item[] = [
     totalSold: 396.00,
     category: "Fregells & Mentos",
     currentStock: 50,
-    minStock: 10
+    minStock: 10,
+    salePrice: 2.00,
+    unitsPerPackage: 1
   },
   {
     id: "19",
@@ -170,7 +206,9 @@ export const INITIAL_ITEMS: Item[] = [
     totalSold: 312.40,
     category: "Fregells & Mentos",
     currentStock: 50,
-    minStock: 10
+    minStock: 10,
+    salePrice: 2.00,
+    unitsPerPackage: 1
   },
   {
     id: "20",
@@ -179,7 +217,9 @@ export const INITIAL_ITEMS: Item[] = [
     totalSold: 462.00,
     category: "Fregells & Mentos",
     currentStock: 50,
-    minStock: 10
+    minStock: 10,
+    salePrice: 2.00,
+    unitsPerPackage: 1
   },
   {
     id: "21",
@@ -188,7 +228,9 @@ export const INITIAL_ITEMS: Item[] = [
     totalSold: 285.00,
     category: "Fregells & Mentos",
     currentStock: 50,
-    minStock: 10
+    minStock: 10,
+    salePrice: 2.00,
+    unitsPerPackage: 1
   },
   {
     id: "22",
@@ -197,7 +239,9 @@ export const INITIAL_ITEMS: Item[] = [
     totalSold: 261.00,
     category: "Fregells & Mentos",
     currentStock: 50,
-    minStock: 10
+    minStock: 10,
+    salePrice: 2.00,
+    unitsPerPackage: 1
   },
   {
     id: "23",
@@ -206,7 +250,9 @@ export const INITIAL_ITEMS: Item[] = [
     totalSold: 354.00,
     category: "Fregells & Mentos",
     currentStock: 50,
-    minStock: 10
+    minStock: 10,
+    salePrice: 2.00,
+    unitsPerPackage: 1
   },
   {
     id: "24",
@@ -215,7 +261,9 @@ export const INITIAL_ITEMS: Item[] = [
     totalSold: 257.50,
     category: "Balas",
     currentStock: 50,
-    minStock: 10
+    minStock: 10,
+    salePrice: 1.00,
+    unitsPerPackage: 30
   }
 ];
 
@@ -246,7 +294,9 @@ export const INITIAL_DAILY_LOGS: DailyLog[] = [
         leftoverQuantity: 10,
         busesBoarded: 14,
         pilotCost: 25.00,
-        expenses: 7.50
+        expenses: 7.50,
+        salePrice: 1.00,
+        unitsPerPackage: 30
       },
       {
         id: "dis-2",
@@ -257,7 +307,9 @@ export const INITIAL_DAILY_LOGS: DailyLog[] = [
         leftoverQuantity: 13,
         busesBoarded: 14,
         pilotCost: 25.00,
-        expenses: 7.50
+        expenses: 7.50,
+        salePrice: 10.00,
+        unitsPerPackage: 1
       }
     ]
   },
@@ -280,7 +332,9 @@ export const INITIAL_DAILY_LOGS: DailyLog[] = [
         leftoverQuantity: 20,
         busesBoarded: 10,
         pilotCost: 22.50,
-        expenses: 6.25
+        expenses: 6.25,
+        salePrice: 10.00,
+        unitsPerPackage: 1
       },
       {
         id: "dis-4",
@@ -291,7 +345,9 @@ export const INITIAL_DAILY_LOGS: DailyLog[] = [
         leftoverQuantity: 45,
         busesBoarded: 10,
         pilotCost: 22.50,
-        expenses: 6.25
+        expenses: 6.25,
+        salePrice: 1.00,
+        unitsPerPackage: 30
       }
     ]
   }
