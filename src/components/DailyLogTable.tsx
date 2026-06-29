@@ -251,7 +251,7 @@ export default function DailyLogTable({ logs, onEdit, onDelete, onAddNew, select
                 <th 
                   id="th-log-qty"
                   onClick={() => handleSort("quantityToSell")}
-                  className="px-6 py-4 text-xs font-bold text-white/40 uppercase tracking-wider cursor-pointer hover:bg-white/5 transition-colors group text-right select-none"
+                  className="hidden md:table-cell px-6 py-4 text-xs font-bold text-white/40 uppercase tracking-wider cursor-pointer hover:bg-white/5 transition-colors group text-right select-none"
                 >
                   <div className="flex items-center justify-end gap-1.5">
                     <span>Qtd. Venda</span>
@@ -271,7 +271,7 @@ export default function DailyLogTable({ logs, onEdit, onDelete, onAddNew, select
                 <th 
                   id="th-log-pilot"
                   onClick={() => handleSort("pilotCost")}
-                  className="px-6 py-4 text-xs font-bold text-white/40 uppercase tracking-wider cursor-pointer hover:bg-white/5 transition-colors group text-right select-none"
+                  className="hidden md:table-cell px-6 py-4 text-xs font-bold text-white/40 uppercase tracking-wider cursor-pointer hover:bg-white/5 transition-colors group text-right select-none"
                 >
                   <div className="flex items-center justify-end gap-1.5">
                     <span>Doce Pilotos (Custo)</span>
@@ -281,7 +281,7 @@ export default function DailyLogTable({ logs, onEdit, onDelete, onAddNew, select
                 <th 
                   id="th-log-reinvest"
                   onClick={() => handleSort("reinvestedValue")}
-                  className="px-6 py-4 text-xs font-bold text-white/40 uppercase tracking-wider cursor-pointer hover:bg-white/5 transition-colors group text-right select-none"
+                  className="hidden md:table-cell px-6 py-4 text-xs font-bold text-white/40 uppercase tracking-wider cursor-pointer hover:bg-white/5 transition-colors group text-right select-none"
                 >
                   <div className="flex items-center justify-end gap-1.5">
                     <span>Reinvestido</span>
@@ -291,7 +291,7 @@ export default function DailyLogTable({ logs, onEdit, onDelete, onAddNew, select
                 <th 
                   id="th-log-expenses"
                   onClick={() => handleSort("expenses")}
-                  className="px-6 py-4 text-xs font-bold text-white/40 uppercase tracking-wider cursor-pointer hover:bg-white/5 transition-colors group text-right select-none"
+                  className="hidden md:table-cell px-6 py-4 text-xs font-bold text-white/40 uppercase tracking-wider cursor-pointer hover:bg-white/5 transition-colors group text-right select-none"
                 >
                   <div className="flex items-center justify-end gap-1.5">
                     <span>Gasto Dia</span>
@@ -308,7 +308,7 @@ export default function DailyLogTable({ logs, onEdit, onDelete, onAddNew, select
                     <ArrowUpDown size={12} className="text-white/30 group-hover:text-white/80 transition-colors" />
                   </div>
                 </th>
-                <th className="px-6 py-4 text-xs font-bold text-white/40 uppercase tracking-wider">
+                <th className="hidden md:table-cell px-6 py-4 text-xs font-bold text-white/40 uppercase tracking-wider">
                   Observações
                 </th>
                 <th className="px-6 py-4 text-xs font-bold text-white/40 uppercase tracking-wider text-right w-24">
@@ -341,7 +341,7 @@ export default function DailyLogTable({ logs, onEdit, onDelete, onAddNew, select
                       </td>
 
                       {/* Quantity To Sell */}
-                      <td className="px-6 py-4 text-right font-mono text-sm text-white/90">
+                      <td className="hidden md:table-cell px-6 py-4 text-right font-mono text-sm text-white/90">
                         {(log.quantityToSell ?? 0).toLocaleString("pt-BR")}
                       </td>
 
@@ -351,17 +351,17 @@ export default function DailyLogTable({ logs, onEdit, onDelete, onAddNew, select
                       </td>
 
                       {/* Pilot Cost */}
-                      <td className="px-6 py-4 text-right font-mono text-sm text-red-400 font-medium">
+                      <td className="hidden md:table-cell px-6 py-4 text-right font-mono text-sm text-red-400 font-medium">
                         {log.pilotCost && log.pilotCost > 0 ? `-${formatCurrency(log.pilotCost)}` : formatCurrency(0)}
                       </td>
 
                       {/* Reinvested Value */}
-                      <td className="px-6 py-4 text-right font-mono text-sm text-amber-400 font-medium">
+                      <td className="hidden md:table-cell px-6 py-4 text-right font-mono text-sm text-amber-400 font-medium">
                         {formatCurrency(log.reinvestedValue)}
                       </td>
 
                       {/* Daily Expenses */}
-                      <td className="px-6 py-4 text-right font-mono text-sm text-red-400 font-medium">
+                      <td className="hidden md:table-cell px-6 py-4 text-right font-mono text-sm text-red-400 font-medium">
                         {log.expenses && log.expenses > 0 ? `-${formatCurrency(log.expenses)}` : formatCurrency(0)}
                       </td>
 
@@ -371,7 +371,7 @@ export default function DailyLogTable({ logs, onEdit, onDelete, onAddNew, select
                       </td>
 
                       {/* Notes */}
-                      <td className="px-6 py-4 text-xs text-white/60 max-w-xs truncate" title={log.notes}>
+                      <td className="hidden md:table-cell px-6 py-4 text-xs text-white/60 max-w-xs truncate" title={log.notes}>
                         {log.notes ? (
                           <div className="flex items-center gap-1">
                             <MessageSquare size={12} className="text-white/30 shrink-0" />

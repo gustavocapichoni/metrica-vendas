@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Edit2, Trash2, Search, Filter, ArrowUpDown, ChevronDown, PlusCircle, Download } from "lucide-react";
+import { Edit2, Trash2, Search, Filter, ArrowUpDown, ChevronDown, PlusCircle, Download, Calendar, ArrowRight } from "lucide-react";
 import { Item, DailyLog } from "../types";
 import { CATEGORIES } from "../data";
 
@@ -10,6 +10,8 @@ interface ItemTableProps {
   onEdit: (item: Item) => void;
   onDelete: (id: string) => void;
   onAddNew: () => void;
+  onStartToday?: () => void;
+  todayLogExists?: boolean;
 }
 
 type SortField = "name" | "price" | "salePrice" | "totalSold" | "profit" | "currentStock";
@@ -21,7 +23,7 @@ interface ItemWithSales extends Item {
   totalCost: number;
 }
 
-export default function ItemTable({ items, logs, onEdit, onDelete, onAddNew }: ItemTableProps) {
+export default function ItemTable({ items, logs, onEdit, onDelete, onAddNew, onStartToday, todayLogExists }: ItemTableProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("Todas");
   const [sortField, setSortField] = useState<SortField>("name");
@@ -244,13 +246,13 @@ export default function ItemTable({ items, logs, onEdit, onDelete, onAddNew }: I
                     <ArrowUpDown size={12} className="text-white/30 group-hover:text-white/80 transition-colors" />
                   </div>
                 </th>
-                <th className="px-6 py-4 text-xs font-bold text-white/40 uppercase tracking-wider select-none">
+                <th className="hidden md:table-cell px-6 py-4 text-xs font-bold text-white/40 uppercase tracking-wider select-none">
                   Categoria
                 </th>
                 <th 
                   id="th-price"
                   onClick={() => handleSort("price")}
-                  className="px-6 py-4 text-xs font-bold text-white/40 uppercase tracking-wider cursor-pointer hover:bg-white/5 transition-colors group text-right select-none"
+                  className="hidden md:table-cell px-6 py-4 text-xs font-bold text-white/40 uppercase tracking-wider cursor-pointer hover:bg-white/5 transition-colors group text-right select-none"
                 >
                   <div className="flex items-center justify-end gap-1.5">
                     <span>Custo (Pacote)</span>
@@ -280,7 +282,7 @@ export default function ItemTable({ items, logs, onEdit, onDelete, onAddNew }: I
                 <th 
                   id="th-totalsold"
                   onClick={() => handleSort("totalSold")}
-                  className="px-6 py-4 text-xs font-bold text-white/40 uppercase tracking-wider cursor-pointer hover:bg-white/5 transition-colors group text-right select-none"
+                  className="hidden md:table-cell px-6 py-4 text-xs font-bold text-white/40 uppercase tracking-wider cursor-pointer hover:bg-white/5 transition-colors group text-right select-none"
                 >
                   <div className="flex items-center justify-end gap-1.5">
                     <span>Total Vendido</span>
@@ -290,7 +292,7 @@ export default function ItemTable({ items, logs, onEdit, onDelete, onAddNew }: I
                 <th 
                   id="th-profit"
                   onClick={() => handleSort("profit")}
-                  className="px-6 py-4 text-xs font-bold text-white/40 uppercase tracking-wider cursor-pointer hover:bg-white/5 transition-colors group text-right select-none"
+                  className="hidden md:table-cell px-6 py-4 text-xs font-bold text-white/40 uppercase tracking-wider cursor-pointer hover:bg-white/5 transition-colors group text-right select-none"
                 >
                   <div className="flex items-center justify-end gap-1.5">
                     <span>Faturamento (Lucro)</span>
@@ -312,7 +314,7 @@ export default function ItemTable({ items, logs, onEdit, onDelete, onAddNew }: I
                       key={item.id}
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
-                      exit={{ opacity: 0, height: 0 }}
+                      exit={{ opacity: 0 }}
                       className="hover:bg-white/5 transition-colors group/row"
                     >
                       {/* Name */}
@@ -323,14 +325,14 @@ export default function ItemTable({ items, logs, onEdit, onDelete, onAddNew }: I
                       </td>
 
                       {/* Category Badge */}
-                      <td className="px-6 py-4">
+                      <td className="hidden md:table-cell px-6 py-4">
                         <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-white/5 border border-white/10 text-white/70">
                           {item.category || "Outros"}
                         </span>
                       </td>
 
                       {/* Price (Cost/Package) */}
-                      <td className="px-6 py-4 text-right font-mono text-sm text-slate-300 font-medium">
+                      <td className="hidden md:table-cell px-6 py-4 text-right font-mono text-sm text-slate-300 font-medium">
                         <div>{formatCurrency(item.price)}</div>
                         <div className="text-[10px] text-white/40 mt-0.5">{item.unitsPerPackage || 1} un/pac</div>
                       </td>
@@ -368,12 +370,12 @@ export default function ItemTable({ items, logs, onEdit, onDelete, onAddNew }: I
                       </td>
 
                       {/* Total Sold */}
-                      <td className="px-6 py-4 text-right font-mono text-sm text-emerald-400 font-semibold">
+                      <td className="hidden md:table-cell px-6 py-4 text-right font-mono text-sm text-emerald-400 font-semibold">
                         {formatCurrency(item.totalSold)}
                       </td>
 
                       {/* Profit (Subtraction) */}
-                      <td className={`px-6 py-4 text-right font-mono text-sm font-bold ${profit >= 0 ? "text-indigo-400" : "text-red-400"}`}>
+                      <td className={`hidden md:table-cell px-6 py-4 text-right font-mono text-sm font-bold ${profit >= 0 ? "text-indigo-400" : "text-red-400"}`}>
                         {formatCurrency(profit)}
                       </td>
 
@@ -409,25 +411,42 @@ export default function ItemTable({ items, logs, onEdit, onDelete, onAddNew }: I
 
       {/* Table Footer with Summary Row */}
       {sortedItems.length > 0 && (
-        <div className="bg-slate-950/25 border-t border-white/10 px-6 py-3.5 flex flex-col sm:flex-row justify-between items-center gap-3">
-          <p className="text-xs font-semibold text-white/40">
-            Mostrando <span className="text-white font-bold">{sortedItems.length}</span> de <span className="text-white/60 font-medium">{items.length}</span> itens
-          </p>
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 sm:gap-6 text-xs text-white/50 font-mono">
-            <p>
-              Soma Custo/Pacote: <span className="font-bold text-slate-300 font-sans text-sm">{formatCurrency(sortedItems.reduce((sum, item) => sum + item.price, 0))}</span>
+        <div className="bg-slate-950/25 border-t border-white/10 px-6 py-4 flex flex-col lg:flex-row justify-between items-center gap-4">
+          <div className="flex flex-col md:flex-row items-center gap-3 w-full lg:w-auto">
+            <p className="text-xs font-semibold text-white/40 whitespace-nowrap">
+              Mostrando <span className="text-white font-bold">{sortedItems.length}</span> de <span className="text-white/60 font-medium">{items.length}</span> itens
             </p>
-            <span className="hidden sm:inline text-white/10">|</span>
-            <p>
-              Total Vendido: <span className="font-bold text-white font-sans text-sm">{formatCurrency(sortedItems.reduce((sum, item) => sum + item.totalSold, 0))}</span>
-            </p>
-            <span className="hidden sm:inline text-white/10">|</span>
-            <p>
-              Lucro Total: <span className="font-bold text-indigo-400 font-sans text-sm">{formatCurrency(sortedItems.reduce((sum, item) => {
-                return sum + (item.totalSold - item.totalCost);
-              }, 0))}</span>
-            </p>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 sm:gap-6 text-xs text-white/50 font-mono">
+              <p>
+                Soma Custo/Pacote: <span className="font-bold text-slate-300 font-sans text-sm">{formatCurrency(sortedItems.reduce((sum, item) => sum + item.price, 0))}</span>
+              </p>
+              <span className="hidden sm:inline text-white/10">|</span>
+              <p>
+                Total Vendido: <span className="font-bold text-white font-sans text-sm">{formatCurrency(sortedItems.reduce((sum, item) => sum + item.totalSold, 0))}</span>
+              </p>
+              <span className="hidden sm:inline text-white/10">|</span>
+              <p>
+                Lucro Total: <span className="font-bold text-indigo-400 font-sans text-sm">{formatCurrency(sortedItems.reduce((sum, item) => {
+                  return sum + (item.totalSold - item.totalCost);
+                }, 0))}</span>
+              </p>
+            </div>
           </div>
+
+          {onStartToday && (
+            <button
+              onClick={onStartToday}
+              className={`flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-lg hover:shadow-xl active:scale-95 cursor-pointer w-full lg:w-auto shrink-0 ${
+                todayLogExists
+                  ? "bg-emerald-500 hover:bg-emerald-600 border border-emerald-500/20 shadow-emerald-500/10"
+                  : "bg-indigo-500 hover:bg-indigo-600 border border-indigo-500/20 shadow-indigo-500/10"
+              }`}
+            >
+              <Calendar size={15} />
+              <span>{todayLogExists ? "Acessar Dia de Hoje" : "Iniciar Dia de Hoje"}</span>
+              <ArrowRight size={14} />
+            </button>
+          )}
         </div>
       )}
     </div>

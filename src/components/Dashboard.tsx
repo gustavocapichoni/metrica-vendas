@@ -30,12 +30,13 @@ import { DailyLog, Item, DailyItemSale } from "../types";
 interface DashboardProps {
   logs: DailyLog[];
   items: Item[];
-  onStartToday: (preloadedSales: Omit<DailyItemSale, "id">[]) => void;
+  onGoToVendas: () => void;
+  onGoToEstoque: () => void;
   onSelectLog: (id: string) => void;
   onUpdateStock: (itemId: string, newStock: number) => void;
 }
 
-export default function Dashboard({ logs, items, onStartToday, onSelectLog, onUpdateStock }: DashboardProps) {
+export default function Dashboard({ logs, items, onGoToVendas, onGoToEstoque, onSelectLog, onUpdateStock }: DashboardProps) {
   const [restockInputs, setRestockInputs] = useState<{ [itemId: string]: number | "" }>({});
   const [restockSuccess, setRestockSuccess] = useState<{ [itemId: string]: boolean }>({});
 
@@ -203,39 +204,7 @@ export default function Dashboard({ logs, items, onStartToday, onSelectLog, onUp
     return logs.some(log => log.date === todayStr);
   }, [logs, todayStr]);
 
-  const handleStartTodayClick = () => {
-    if (todayLogExists) {
-      const existing = logs.find(log => log.date === todayStr);
-      if (existing) onSelectLog(existing.id);
-      return;
-    }
 
-    // Find previous day leftovers to preload as starting Carga
-    let preloadedSales: Omit<DailyItemSale, "id">[] = [];
-    if (logs.length > 0) {
-      const sortedLogs = [...logs].sort((a, b) => b.date.localeCompare(a.date));
-      const lastLog = sortedLogs[0]; // most recent log
-      if (lastLog.itemSales && lastLog.itemSales.length > 0) {
-        lastLog.itemSales.forEach(s => {
-          if (s.leftoverQuantity > 0) {
-            preloadedSales.push({
-              itemId: s.itemId,
-              itemName: s.itemName,
-              price: s.price,
-              loadedQuantity: s.leftoverQuantity, // leftover yesterday -> carga today
-              leftoverQuantity: s.leftoverQuantity, // default same leftover so profit starts at 0
-              busesBoarded: 0,
-              pilotCost: 0,
-              expenses: 0,
-              busSales: []
-            });
-          }
-        });
-      }
-    }
-
-    onStartToday(preloadedSales);
-  };
 
   const handleRestockSubmit = (itemId: string) => {
     const inputVal = restockInputs[itemId];
@@ -277,19 +246,25 @@ export default function Dashboard({ logs, items, onStartToday, onSelectLog, onUp
           </p>
         </div>
 
-        {/* Start Today Quick Action */}
-        <button
-          onClick={handleStartTodayClick}
-          className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-bold text-white transition-all shadow-lg shadow-indigo-500/10 hover:shadow-indigo-500/25 active:scale-95 cursor-pointer ${
-            todayLogExists
-              ? "bg-emerald-500 hover:bg-emerald-600 border border-emerald-500/20"
-              : "bg-indigo-500 hover:bg-indigo-600 border border-indigo-500/20"
-          }`}
-        >
-          <Calendar size={15} />
-          <span>{todayLogExists ? "Acessar Dia de Hoje" : "Iniciar Dia de Hoje"}</span>
-          <ArrowRight size={14} />
-        </button>
+        {/* Actions */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <button
+            onClick={onGoToEstoque}
+            className="flex items-center justify-center gap-2 px-5 py-3 rounded-2xl text-xs font-bold text-white transition-all shadow-lg bg-indigo-500 hover:bg-indigo-600 border border-indigo-500/20 shadow-indigo-500/10 active:scale-95 cursor-pointer"
+          >
+            <Package size={15} />
+            <span>Criar Estoque</span>
+          </button>
+
+          <button
+            onClick={onGoToVendas}
+            className="flex items-center justify-center gap-2 px-5 py-3 rounded-2xl text-xs font-bold text-white transition-all shadow-lg bg-emerald-500 hover:bg-emerald-600 border border-emerald-500/20 shadow-emerald-500/10 active:scale-95 cursor-pointer"
+          >
+            <ShoppingBag size={15} />
+            <span>Ir para Área de Vendas</span>
+            <ArrowRight size={14} />
+          </button>
+        </div>
       </div>
 
       {/* KPI Cards Grid */}

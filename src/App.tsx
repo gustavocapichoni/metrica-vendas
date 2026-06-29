@@ -68,11 +68,23 @@ export default function App() {
 
   // --- Firebase Auth listener ---
   useEffect(() => {
+    // Fallback timeout: se offline, Firebase pode demorar ou nunca chamar o callback
+    // pois tenta revalidar o token no servidor. Após 3s, usamos o cache local.
+    const fallbackTimer = setTimeout(() => {
+      setUser(auth.currentUser);
+      setAuthLoading(false);
+    }, 3000);
+
     const unsub = onAuthStateChanged(auth, (firebaseUser) => {
+      clearTimeout(fallbackTimer);
       setUser(firebaseUser);
       setAuthLoading(false);
     });
-    return unsub;
+
+    return () => {
+      clearTimeout(fallbackTimer);
+      unsub();
+    };
   }, []);
 
   // --- Firestore: Load items for logged-in user ---
@@ -89,6 +101,8 @@ export default function App() {
         await setDoc(metaRef, { at: new Date().toISOString() });
         // New user: start with empty list (no seed)
       }
+    }).catch(() => {
+      // Offline: ignora silenciosamente. Será verificado ao reconectar.
     });
 
     const unsub = onSnapshot(col, (snapshot) => {
@@ -129,38 +143,58 @@ export default function App() {
   const saveItems = async (newItems: Item[]) => {
     setItems(newItems);
     if (!user) return;
-    const batch = writeBatch(db);
-    const col = collection(db, "users", user.uid, "items");
-    // Upsert all items
-    newItems.forEach(item => {
-      batch.set(doc(col, item.id), item);
-    });
-    // Delete items that were removed (by comparing ids)
-    const currentIds = new Set(newItems.map(i => i.id));
-    items.forEach(item => {
-      if (!currentIds.has(item.id)) {
-        batch.delete(doc(col, item.id));
+    try {
+      const batch = writeBatch(db);
+      const col = collection(db, "users", user.uid, "items");
+      // Upsert all items
+      newItems.forEach(item => {
+        batch.set(doc(col, item.id), item);
+      });
+      // Delete items that were removed (by comparing ids)
+      const currentIds = new Set(newItems.map(i => i.id));
+      items.forEach(item => {
+        if (!currentIds.has(item.id)) {
+          batch.delete(doc(col, item.id));
+        }
+      });
+      await batch.commit();
+    } catch (err: any) {
+      if (!navigator.onLine) {
+        // Firestore com persistentLocalCache enfileira a op. automaticamente
+        showToast("Salvo localmente. Será sincronizado ao reconectar.", "info");
+      } else {
+        showToast("Erro ao salvar itens no servidor. Tente novamente.", "error");
+        console.error("saveItems error:", err);
       }
-    });
-    await batch.commit();
+    }
   };
 
   // --- Save daily logs to Firestore ---
   const saveDailyLogs = async (newLogs: DailyLog[]) => {
     setDailyLogs(newLogs);
     if (!user) return;
-    const batch = writeBatch(db);
-    const col = collection(db, "users", user.uid, "dailyLogs");
-    newLogs.forEach(log => {
-      batch.set(doc(col, log.id), log);
-    });
-    const currentIds = new Set(newLogs.map(l => l.id));
-    dailyLogs.forEach(log => {
-      if (!currentIds.has(log.id)) {
-        batch.delete(doc(col, log.id));
+    try {
+      const batch = writeBatch(db);
+      const col = collection(db, "users", user.uid, "dailyLogs");
+      newLogs.forEach(log => {
+        batch.set(doc(col, log.id), log);
+      });
+      const currentIds = new Set(newLogs.map(l => l.id));
+      dailyLogs.forEach(log => {
+        if (!currentIds.has(log.id)) {
+          batch.delete(doc(col, log.id));
+        }
+      });
+      await batch.commit();
+    } catch (err: any) {
+      if (!navigator.onLine) {
+        // Firestore com persistentLocalCache enfileira a op. automaticamente
+        showToast("Salvo localmente. Será sincronizado ao reconectar.", "info");
+      } else {
+        showToast("Erro ao salvar registro diário. Tente novamente.", "error");
+        console.error("saveDailyLogs error:", err);
       }
-    });
-    await batch.commit();
+    }
   };
 
   // Trigger temporary notification toast
@@ -720,22 +754,24 @@ export default function App() {
   }
 
   return (
-    <div id="app-root" className="min-h-screen pb-12 antialiased selection:bg-white selection:text-slate-900">
+    <div id="app-root" className="min-h-screen pb-16 sm:pb-12 overflow-x-hidden antialiased selection:bg-white selection:text-slate-900">
       {/* Top Banner / Navbar */}
       <header id="app-header" className="sticky top-0 bg-slate-950/40 backdrop-blur-md border-b border-white/10 z-30 transition-all">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center text-white shadow-sm">
-              <TrendingUp size={20} className="stroke-[2.5]" />
+        {/* Row 1: Logo + Right actions */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-12 sm:h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center text-white shadow-sm shrink-0">
+              <TrendingUp size={16} className="stroke-[2.5] sm:hidden" />
+              <TrendingUp size={20} className="stroke-[2.5] hidden sm:block" />
             </div>
             <div>
-              <h1 className="text-sm font-bold text-white tracking-tight leading-tight">MétricaVendas</h1>
-              <p className="text-[10px] text-white/50 font-medium">Controle de Itens e Vendas</p>
+              <h1 className="text-xs sm:text-sm font-bold text-white tracking-tight leading-tight">MétricaVendas</h1>
+              <p className="text-[9px] sm:text-[10px] text-white/50 font-medium hidden xs:block">Controle de Itens e Vendas</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            {/* Elegant Tab Switcher in Navbar */}
+          {/* Desktop: full tab bar inline */}
+          <div className="hidden sm:flex items-center gap-3">
             <div className="flex items-center bg-slate-900/60 border border-white/10 p-1 rounded-xl shadow-lg">
               <button
                 id="tab-dashboard-btn"
@@ -746,8 +782,7 @@ export default function App() {
                   }`}
               >
                 <TrendingUp size={13} />
-                <span className="hidden sm:inline">Dashboard</span>
-                <span className="sm:hidden">Painel</span>
+                <span>Dashboard</span>
               </button>
               <button
                 id="tab-vendas-btn"
@@ -758,8 +793,7 @@ export default function App() {
                   }`}
               >
                 <ShoppingBag size={13} />
-                <span className="hidden sm:inline">Área de Vendas</span>
-                <span className="sm:hidden">Vendas</span>
+                <span>Área de Vendas</span>
               </button>
               <button
                 id="tab-estoque-btn"
@@ -770,15 +804,14 @@ export default function App() {
                   }`}
               >
                 <Package size={13} />
-                <span className="hidden sm:inline">Itens no Estoque</span>
-                <span className="sm:hidden">Estoque</span>
+                <span>Itens no Estoque</span>
                 {items.some(item => (item.currentStock ?? 0) <= (item.minStock ?? 0)) && (
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping absolute -top-0.5 -right-0.5" />
                 )}
               </button>
             </div>
 
-            <div className="h-4 w-px bg-white/10 hidden sm:block" />
+            <div className="h-4 w-px bg-white/10" />
 
             {activeTab === 'vendas' && (
               <button
@@ -796,55 +829,117 @@ export default function App() {
               </button>
             )}
 
-            <div className="h-4 w-px bg-white/10 hidden sm:block" />
+            <div className="h-4 w-px bg-white/10" />
 
-            {/* User Avatar + Logout */}
+            {/* User Avatar + Logout — desktop */}
             <div className="flex items-center gap-2.5">
               {isOnline ? (
-                <div 
-                  id="connection-status-online"
-                  className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl text-[10px] font-bold shadow-sm"
-                  title="Conectado à Internet"
-                >
+                <div id="connection-status-online" className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl text-[10px] font-bold shadow-sm" title="Conectado à Internet">
                   <Wifi size={11} className="stroke-[2.5]" />
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                   <span className="hidden md:inline">Online</span>
                 </div>
               ) : (
-                <div 
-                  id="connection-status-offline"
-                  className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-xl text-[10px] font-bold shadow-sm"
-                  title="Sem Internet - Modo Offline Ativado"
-                >
+                <div id="connection-status-offline" className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-xl text-[10px] font-bold shadow-sm" title="Sem Internet - Modo Offline Ativado">
                   <WifiOff size={11} className="stroke-[2.5]" />
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
                   <span>Offline</span>
                 </div>
               )}
-
               {user.photoURL && (
-                <img
-                  src={user.photoURL}
-                  alt={user.displayName || "User"}
-                  className="w-7 h-7 rounded-full border border-white/20"
-                  title={user.displayName || user.email || ""}
-                />
+                <img src={user.photoURL} alt={user.displayName || "User"} className="w-7 h-7 rounded-full border border-white/20" title={user.displayName || user.email || ""} />
               )}
-              <button
-                id="logout-btn"
-                onClick={() => signOut(auth)}
-                title="Sair da conta"
-                className="flex items-center gap-1.5 px-2.5 py-1.5 text-white/40 hover:text-red-400 hover:bg-red-500/10 border border-white/10 rounded-xl transition-all cursor-pointer text-xs font-semibold"
-              >
+              <button id="logout-btn" onClick={() => signOut(auth)} title="Sair da conta" className="flex items-center gap-1.5 px-2.5 py-1.5 text-white/40 hover:text-red-400 hover:bg-red-500/10 border border-white/10 rounded-xl transition-all cursor-pointer text-xs font-semibold">
                 <LogOut size={13} />
-                <span className="hidden sm:inline">Sair</span>
+                <span>Sair</span>
               </button>
             </div>
+          </div>
+
+          {/* Mobile: right actions only (wifi + avatar + logout) */}
+          <div className="flex sm:hidden items-center gap-2">
+            {isOnline ? (
+              <div id="connection-status-online" className="flex items-center gap-1 px-2 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg text-[10px] font-bold" title="Online">
+                <Wifi size={10} className="stroke-[2.5]" />
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              </div>
+            ) : (
+              <div id="connection-status-offline" className="flex items-center gap-1 px-2 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-lg text-[10px] font-bold" title="Offline">
+                <WifiOff size={10} className="stroke-[2.5]" />
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
+              </div>
+            )}
+            {user.photoURL && (
+              <img src={user.photoURL} alt={user.displayName || "User"} className="w-6 h-6 rounded-full border border-white/20" />
+            )}
+            <button onClick={() => signOut(auth)} title="Sair" className="p-1.5 text-white/40 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all cursor-pointer">
+              <LogOut size={14} />
+            </button>
+          </div>
+        </div>
+
+        {/* Row 2 (mobile only): Tabs + compact report button */}
+        <div className="sm:hidden border-t border-white/5 bg-slate-950/60">
+          <div className="max-w-7xl mx-auto px-3 h-10 flex items-center justify-between gap-2">
+            <div className="flex items-center bg-slate-900/60 border border-white/10 p-0.5 rounded-lg flex-1">
+              <button
+                id="tab-dashboard-btn-mobile"
+                onClick={() => setActiveTab('dashboard')}
+                className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-[11px] font-bold rounded-md transition-all cursor-pointer ${activeTab === 'dashboard'
+                    ? "bg-white/10 text-white border border-white/5"
+                    : "text-white/50 hover:text-white border border-transparent"
+                  }`}
+              >
+                <TrendingUp size={11} />
+                <span>Painel</span>
+              </button>
+              <button
+                id="tab-vendas-btn-mobile"
+                onClick={() => setActiveTab('vendas')}
+                className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-[11px] font-bold rounded-md transition-all cursor-pointer ${activeTab === 'vendas'
+                    ? "bg-white/10 text-white border border-white/5"
+                    : "text-white/50 hover:text-white border border-transparent"
+                  }`}
+              >
+                <ShoppingBag size={11} />
+                <span>Vendas</span>
+              </button>
+              <button
+                id="tab-estoque-btn-mobile"
+                onClick={() => setActiveTab('estoque')}
+                className={`relative flex-1 flex items-center justify-center gap-1 py-1.5 text-[11px] font-bold rounded-md transition-all cursor-pointer ${activeTab === 'estoque'
+                    ? "bg-white/10 text-white border border-white/5"
+                    : "text-white/50 hover:text-white border border-transparent"
+                  }`}
+              >
+                <Package size={11} />
+                <span>Estoque</span>
+                {items.some(item => (item.currentStock ?? 0) <= (item.minStock ?? 0)) && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping absolute top-0.5 right-1" />
+                )}
+              </button>
+            </div>
+
+            {activeTab === 'vendas' && (
+              <button
+                id="header-report-btn-mobile"
+                disabled={!selectedLog}
+                onClick={() => setIsReportOpen(true)}
+                className={`flex items-center justify-center gap-1 px-2.5 py-1.5 font-bold text-[11px] rounded-lg transition-all border shrink-0 cursor-pointer ${selectedLog
+                    ? "bg-indigo-500 hover:bg-indigo-600 border-indigo-500/30 text-white active:scale-95"
+                    : "bg-white/5 text-white/20 border-white/5 cursor-not-allowed"
+                  }`}
+                title="Gerar relatório"
+              >
+                <FileText size={12} />
+                <span>Relatório</span>
+              </button>
+            )}
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-12">
+      <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pt-4 sm:pt-8 space-y-6 sm:space-y-12">
         {/* Tabela de Itens e Vendas with Tabs */}
         <div id="items-sales-tabs-section" className="space-y-6 mt-4">
           {/* Header */}
@@ -875,27 +970,8 @@ export default function App() {
                   <Dashboard
                     logs={dailyLogs}
                     items={items}
-                    onStartToday={(preloadedSales) => {
-                      const todayLog: DailyLog = {
-                        id: "dl-" + Date.now().toString(),
-                        date: todayStr,
-                        quantityToSell: preloadedSales.reduce((sum, s) => sum + s.loadedQuantity, 0),
-                        soldValue: 0,
-                        pilotCost: 0,
-                        reinvestedValue: 0,
-                        expenses: 0,
-                        notes: "Dia iniciado com sobras de ontem pré-carregadas.",
-                        restocks: [],
-                        itemSales: preloadedSales.map((s, idx) => ({
-                          ...s,
-                          id: "dis-" + Date.now().toString() + "-" + idx + "-" + s.itemId
-                        }))
-                      };
-                      saveDailyLogs([todayLog, ...dailyLogs]);
-                      setSelectedLogId(todayLog.id);
-                      setActiveTab('vendas');
-                      showToast("Novo dia de vendas iniciado! Sobras de ontem foram pré-carregadas.", "success");
-                    }}
+                    onGoToVendas={() => setActiveTab('vendas')}
+                    onGoToEstoque={() => setActiveTab('estoque')}
                     onSelectLog={(id) => {
                       setSelectedLogId(id);
                       setActiveTab('vendas');
@@ -952,6 +1028,8 @@ export default function App() {
                         setEditingItem(null);
                         setIsFormOpen(true);
                       }}
+                      onStartToday={handleCreateDirectDailyLog}
+                      todayLogExists={dailyLogs.some(log => log.date === todayStr)}
                     />
                   )}
                 </motion.div>
@@ -979,7 +1057,13 @@ export default function App() {
                         <p className="text-white/40 text-sm max-w-xs">Registre o seu primeiro dia de vendas para acompanhar faturamento, lucro e desempenho.</p>
                       </div>
                       <button
-                        onClick={handleCreateDirectDailyLog}
+                        onClick={() => {
+                          if (items.length === 0) {
+                            showToast("Você precisa criar o estoque primeiro!", "error");
+                          } else {
+                            handleCreateDirectDailyLog();
+                          }
+                        }}
                         className="flex items-center gap-2 px-6 py-3 rounded-2xl font-bold text-sm text-white transition-all cursor-pointer shadow-lg"
                         style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}
                       >
